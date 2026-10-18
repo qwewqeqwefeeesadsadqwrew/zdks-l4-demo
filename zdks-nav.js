@@ -220,6 +220,23 @@
     if (v && v.node && v.node.activeInHierarchy) { try { v.onClickCloseBtn(); return true; } catch (e) { return false; } }
     return false;
   };
+  // 结算面板结果：'win' / 'lose' / 'end' / null（面板未激活）
+  N.endResult = function () {
+    var v = findComp('Game11EndView');
+    if (!v || !v.node || !v.node.activeInHierarchy) return null;
+    var text = '';
+    (function walk(n, d) {
+      if (d > 8) return;
+      for (var i = 0; i < (n.components || []).length; i++) {
+        var c = n.components[i];
+        if (compClass(c) === 'cc.Label' && typeof c.string === 'string') text += c.string + '\n';
+      }
+      for (var j = 0; j < (n.children || []).length; j++) walk(n.children[j], d + 1);
+    })(v.node, 0);
+    if (/挑战成功|通关成功|胜利/.test(text)) return 'win';
+    if (/挑战失败|失败|未通关/.test(text)) return 'lose';
+    return 'end';
+  };
 
   window.__zdksNav = N;
 })();

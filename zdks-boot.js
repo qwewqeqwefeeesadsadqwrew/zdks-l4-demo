@@ -140,6 +140,28 @@
       return;
     }
 
+    // 结算面板直接识别：state 可能已销毁，不能只靠策略的 over 标记
+    var er = nav.endResult ? nav.endResult() : null;
+    if (er === 'win') {
+      B.live = false;
+      B.phase = 'won';
+      var lastRow = (window.__zdksAuto && window.__zdksAuto.rows && window.__zdksAuto.rows.length)
+        ? window.__zdksAuto.rows[window.__zdksAuto.rows.length - 1] : {};
+      var wk = lastRow.kill != null ? lastRow.kill : (st && st.kill);
+      var wt = (st && st.total) || 869;
+      hud('第4关 通关 ✓ 击杀 ' + (wk != null ? wk : '?') + '/' + wt, 'win');
+      log('WIN (end panel)');
+      return;
+    }
+    if (er === 'lose') {
+      B.phase = 'lost';
+      var rdEnd = nav.retryDom();
+      if (rdEnd) { hud('未通关，重新挑战…'); act('retry-end', rdEnd); return; }
+      if (nav.closeEnd()) { hud('未通关，关闭结算…'); return; }
+      hud('未通关，等待重试…');
+      return;
+    }
+
     var A = window.__zdksAuto;
     if (A && A.over) {
       if (/^WIN/.test(A.over)) {

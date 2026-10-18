@@ -322,7 +322,10 @@ window.__zdksStartStrategy = function () {
     maybeHeal(st);
 
     // 胜负（先判，避免死后还发指令）
-    var won = (st._status === 4) || (st._leftEnemyCount <= 0 && st.enemies && st.enemies.length === 0 && st.killCount >= st.totalEnemyCount);
+    // 击杀数达标即算赢：最后一两只可能还在死亡动画里，不能等 enemies.length===0
+    // （实测 t=164 kill=869 left=0 en=1 时游戏已结算，等 en=0 会错过结算瞬间）
+    var won = (st._status === 4 || st._status === 7) ||
+      (st._leftEnemyCount <= 0 && st.killCount >= st.totalEnemyCount);
     function finalRow(tag) {
       A.rows.push({
         t: Math.round(t * 10) / 10, ph: 'over', x: Math.round(st._cup._position.x * 10) / 10,
