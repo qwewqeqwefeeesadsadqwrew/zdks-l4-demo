@@ -26,22 +26,12 @@
     try { console.log.apply(console, ['[zdks-boot]'].concat([].slice.call(arguments))); } catch (e) { }
   }
 
-  function hud(text, tone) {
-    if (!B.hudEl) {
-      var el = document.createElement('div');
-      el.id = 'zdks-hud';
-      el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:2147483647;' +
-        'font:11px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#fff;' +
-        'background:rgba(0,0,0,.55);padding:3px 8px;border-radius:9px;' +
-        'pointer-events:none;white-space:nowrap;text-shadow:0 1px 1px rgba(0,0,0,.5);' +
-        'transition:background .3s;';
-      (document.body || document.documentElement).appendChild(el);
-      B.hudEl = el;
-    }
-    if (text === B.lastHud) return;
-    B.lastHud = text;
-    B.hudEl.textContent = text;
-    B.hudEl.style.background = tone === 'win' ? 'rgba(20,120,60,.85)' : 'rgba(0,0,0,.55)';
+  // 观众要求去掉底部“自动演示”小条：不再往页面加 HUD，只保留 console 日志。
+  function hud() {
+    try {
+      var old = document.getElementById('zdks-hud');
+      if (old && old.parentNode) old.parentNode.removeChild(old);
+    } catch (e) { }
   }
 
   function canvasEl() {

@@ -42,9 +42,9 @@ window.__zdksStartStrategy = function () {
       maxHeals: 3,
       healCooldownSec: 12,
       // 微操参数：喂弹量 = base + 威胁血量*hp + 威胁数量*n，封顶 max
-      feedMaxSec: 4,
-      feedMinSec: 2,
-      feedCooldownSec: 7,
+      feedMaxSec: 3.5,
+      feedMinSec: 1.8,
+      feedCooldownSec: 4,
       feedTargetBase: 45,
       feedTargetPerHp: 3,
       feedTargetPerEnemy: 2,
@@ -294,6 +294,14 @@ window.__zdksStartStrategy = function () {
       if (Math.abs(dx) > 0.01) st.moveCup(dx, 0);
     } catch (e) { A.errN++; A.err = 'move:' + (e && e.message); }
   }
+
+  // 走位巡逻：在目标车道附近连续小幅摆动，观众看到杯子一直在走位，
+  // 同时不脱离红闸/×16 的命中区。
+  function patrolTo(st, x, amp, period) {
+    var t = st.pastTime || 0;
+    var off = Math.sin((t / (period || 2)) * Math.PI * 2) * (amp || 18);
+    moveTo(st, x + off);
+  }
   function applyBuffs(st) {
     if (A.buffed) return;
     var view = findComp('Game11ChallengeView');
@@ -372,7 +380,7 @@ window.__zdksStartStrategy = function () {
   }
   function feedStep(st, t, th) {
     if (!A.feed.active) return false;
-    moveTo(st, A.lanes.prime);
+    patrolTo(st, A.lanes.prime, 12, 1.6);
     var p = st.players[0];
     var elapsed = t - A.feed.startedAt;
     var reduced = th.nearN <= Math.max(2, Math.floor((A.feed.entryN || 0) * 0.55));
@@ -395,7 +403,7 @@ window.__zdksStartStrategy = function () {
     else if (th.nearHp >= 28) why = 'hpwave';
     if (why && feedStart(st, gateLeft, th, t, why)) {
       console.log('[zdks] dash red -> green feed lane');
-      moveTo(st, A.lanes.prime);
+      patrolTo(st, A.lanes.prime, 12, 1.6);
       return true;
     }
     return false;
@@ -463,10 +471,10 @@ window.__zdksStartStrategy = function () {
     switch (A.phase) {
       case 'boot':
         setPhase('prime', t);
-        moveTo(st, A.lanes.prime);
+        patrolTo(st, A.lanes.prime, 12, 1.6);
         break;
       case 'prime':
-        moveTo(st, A.lanes.prime);
+        patrolTo(st, A.lanes.prime, 12, 1.6);
         if (p._capacity >= A.cfg.primeCap || t >= A.cfg.primeMaxSec) setPhase('leftBreak', t);
         break;
       case 'leftBreak':
@@ -476,27 +484,31 @@ window.__zdksStartStrategy = function () {
         if (se >= 3 && maybeFeed(st, gLeft, t, th)) { A.recharge = false; break; }
         if (!A.recharge && p._capacity < 8 && p.hp < 110) { A.recharge = true; }
         if (A.recharge) {
-          moveTo(st, A.lanes.prime);
+          patrolTo(st, A.lanes.prime, 12, 1.6);
           if (p._capacity >= A.cfg.rechargeCap) { A.recharge = false; console.log('[zdks] recharge done @t' + Math.round(t * 10) / 10); }
         } else {
-          moveTo(st, A.lanes.left);
+          patrolTo(st, A.lanes.left, 12, 2.0);
         }
         if (se > A.cfg.leftBreakMaxSec) setPhase('harvest1', t);
         break;
       case 'harvest1':
+        // 收割这 8 秒是弹药命脉，杯子踩正 ×16 位，不摆
         moveTo(st, A.lanes.left);
         if (se >= A.cfg.harvest1Sec) setPhase('center', t);
         break;
       case 'center':
         // 中心红闸期间同样响应小怪：绿 x3 喂弹 -> 回中心
         if (se >= 3 && maybeFeed(st, gC, t, th)) break;
+        // 中心是拿武器 8 的硬时限：踩正中心位，不摆；走位靠中盘那一次短喂
         moveTo(st, A.lanes.center);
         if (p.config && p.config.id === 8) { setPhase('final', t); break; }
         if (gC != null && gC <= 0 && se > 3) { setPhase('final', t); break; }
         if (se > A.cfg.centerTimeoutSec) setPhase('final', t);
         break;
       case 'final':
-        moveTo(st, A.lanes.left);
+        // ×16 是弹药命脉：弹量充足时小幅走位；低于 450 立刻回正位猛喂，清最后的大怪
+        if (p._capacity > 450) patrolTo(st, A.lanes.left, 8, 1.6);
+        else moveTo(st, A.lanes.left);
         break;
       default:
         setPhase('prime', t);
@@ -544,6 +556,6 @@ window.__zdksStartStrategy = function () {
   A.stop = function () { if (A._id) clearInterval(A._id); A.live = false; };
 
   A._id = setInterval(A.tick, A.cfg.tickMs);
-  console.log('[zdks] strategy v2 boot (level 4 + reactive red-gate <-> green x3 feed/return micro-ops)');
+  console.log('[zdks] strategy v3 boot (patrol movement + denser feed cycles; HUD removed by request)');
 })();
 };
