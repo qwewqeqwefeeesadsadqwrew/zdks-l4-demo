@@ -128,8 +128,13 @@
     // 正在第4关：启动/重启策略
     if (st && st.level === 4 && st.status === 1) {
       B.phase = 'play';
+      B.loseAt = 0; B.hallAt = 0;
       strategy();
-      hud('自动演示 · 第4关 · 击杀 ' + st.kill + '/' + st.total + ' · ' + Math.floor(st.t) + 's');
+      var A = window.__zdksAuto || {};
+      var fN = (A.feed && A.feed.count) || 0;
+      var fA = !!(A.feed && A.feed.active);
+      var microTxt = fA ? ' · 回防喂弹…' : (fN ? ' · 喂弹 ' + fN + ' 次' : '');
+      hud('自动演示 · 第4关 · 击杀 ' + st.kill + '/' + st.total + microTxt + ' · ' + Math.floor(st.t) + 's');
       return;
     }
 
@@ -149,7 +154,9 @@
         ? window.__zdksAuto.rows[window.__zdksAuto.rows.length - 1] : {};
       var wk = lastRow.kill != null ? lastRow.kill : (st && st.kill);
       var wt = (st && st.total) || 869;
-      hud('第4关 通关 ✓ 击杀 ' + (wk != null ? wk : '?') + '/' + wt, 'win');
+      var wA = window.__zdksAuto || {};
+      var wF = (wA.feed && wA.feed.count) || 0;
+      hud('第4关 通关 ✓ 击杀 ' + (wk != null ? wk : '?') + '/' + wt + (wF ? ' · 喂弹 ' + wF + ' 次' : ''), 'win');
       log('WIN (end panel)');
       return;
     }
@@ -158,7 +165,9 @@
       var rdEnd = nav.retryDom();
       if (rdEnd) { hud('未通关，重新挑战…'); act('retry-end', rdEnd); return; }
       if (nav.closeEnd()) { hud('未通关，关闭结算…'); return; }
-      hud('未通关，等待重试…');
+      if (!B.loseAt) B.loseAt = Date.now();
+      if (Date.now() - B.loseAt > 6000) { log('reload after lose'); location.reload(); return; }
+      hud('未通关，准备重试…');
       return;
     }
 
@@ -167,7 +176,8 @@
       if (/^WIN/.test(A.over)) {
         B.live = false;
         B.phase = 'won';
-        hud('第4关 通关 ✓ ' + A.over.replace(/^WIN\s*/, ''), 'win');
+        var aF = (A.feed && A.feed.count) || 0;
+        hud('第4关 通关 ✓ ' + A.over.replace(/^WIN\s*/, '') + (aF ? ' · 喂弹 ' + aF + ' 次' : ''), 'win');
         log('WIN', A.over);
         return;
       }
@@ -205,7 +215,15 @@
     if (l4 && l4.dom) { B.phase = 'level4'; hud('进入第4关…'); act('l4-' + l4.kind, l4.dom); return; }
 
     var hall = nav.textDom('让子弹射');
-    if (hall) { B.phase = 'hall'; hud('进入玩法…'); act('hall', hall); return; }
+    if (hall) {
+      B.phase = 'hall'; hud('进入玩法…'); act('hall', hall);
+      // 失败后有时会退回大厅但点不进玩法：连点超过 20 次且卡 15 秒就整页重载自愈
+      if (B.taps > 20) {
+        if (!B.hallAt) B.hallAt = Date.now();
+        if (Date.now() - B.hallAt > 15000) { log('reload from hall'); location.reload(); return; }
+      } else B.hallAt = 0;
+      return;
+    }
 
     B.phase = 'wait-ui';
     hud('自动演示 · 等待界面…');

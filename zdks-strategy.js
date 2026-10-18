@@ -24,16 +24,33 @@ window.__zdksStartStrategy = function () {
     t0: null,
     phaseT0: null,
     recharge: false,
+    // 反应式微操：红闸 <-> 绿 x3 喂弹道
+    feed: {
+      active: false, startedAt: 0, until: 0, target: 0, lastAt: -999,
+      count: 0, centerCount: 0, entryN: 0, reason: '', nearN: 0, nearHp: 0
+    },
+    th: null,
     cfg: {
       tickMs: 250,
       primeCap: 250,
       primeMaxSec: 18,
-      harvest1Sec: 16,
-      centerTimeoutSec: 35,
+      harvest1Sec: 8,
+      leftBreakMaxSec: 90,
+      centerTimeoutSec: 85,
       rechargeCap: 100,
       healHp: 80,
       maxHeals: 3,
       healCooldownSec: 12,
+      // 微操参数：喂弹量 = base + 威胁血量*hp + 威胁数量*n，封顶 max
+      feedMaxSec: 4,
+      feedMinSec: 2,
+      feedCooldownSec: 7,
+      feedTargetBase: 45,
+      feedTargetPerHp: 3,
+      feedTargetPerEnemy: 2,
+      feedTargetMax: 220,
+      feedEmergencyCap: 22,
+      threatRange: 250, // 距绿 x3 喂弹道 250 内的小怪算“压线”（按观众可见范围，不是玩家贴身）
       levels: 4
     }
   };
@@ -300,10 +317,95 @@ window.__zdksStartStrategy = function () {
     try { v.onClickADBtn(); console.log('[zdks] heal +100 #' + A.heals); } catch (e) { A.errN++; A.err = 'heal:' + (e && e.message); }
   }
 
+  // ---------- 反应式微操：小怪压线 -> 回绿 x3 喂弹 -> 够数回红闸 ----------
+  function enemyThreat(st) {
+    var p = st.players[0];
+    var list = st.enemies || [];
+    var limit = (A.lanes ? A.lanes.prime : 642) + A.cfg.threatRange;
+    var nearN = 0, nearHp = 0, minX = 1e9;
+    for (var i = 0; i < list.length; i++) {
+      var e = list[i];
+      if (!e || !e.config) continue;
+      var x = 1e9;
+      try {
+        if (e.node && e.node.getWorldPosition) x = e.node.getWorldPosition().x;
+        else if (e.position) x = e.position.x;
+      } catch (err) { }
+      if (x < limit) {
+        nearN++;
+        nearHp += (e.config.hp || 1);
+        if (x < minX) minX = x;
+      }
+    }
+    return { nearN: nearN, nearHp: nearHp, minX: minX, limit: limit, cap: p._capacity };
+  }
+  function feedStart(st, gateLeft, th, t, why) {
+    if (A.feed.active) return false;
+    if (gateLeft != null && gateLeft <= 15) return false; // 红闸快破，先打完
+    var p = st.players[0];
+    // 中心阶段是拿武器 8 的关键：只在中盘或真急时回防，且最多 2 次
+    if (A.phase === 'center') {
+      var urgent = p._capacity < 80 || p.hp < 120;
+      var mid = gateLeft != null && gateLeft <= 130;
+      if (A.feed.centerCount >= 1 && !urgent) return false;
+      if (A.feed.centerCount >= 2) return false;
+      if (!urgent && !mid) return false;
+    }
+    var cold = (t - A.feed.lastAt) < A.cfg.feedCooldownSec;
+    var emergency = p._capacity < A.cfg.feedEmergencyCap && th.nearN > 0;
+    if (cold && !emergency) return false;
+    A.feed.active = true;
+    A.feed.startedAt = t;
+    var maxSec = A.phase === 'center' ? Math.min(A.cfg.feedMaxSec, 2.5) : A.cfg.feedMaxSec;
+    A.feed.until = t + maxSec;
+    if (A.phase === 'center') A.feed.centerCount++;
+    A.feed.entryN = th.nearN;
+    A.feed.target = Math.min(A.cfg.feedTargetMax,
+      A.cfg.feedTargetBase + th.nearHp * A.cfg.feedTargetPerHp + th.nearN * A.cfg.feedTargetPerEnemy);
+    A.feed.reason = why;
+    A.feed.nearN = th.nearN;
+    A.feed.nearHp = th.nearHp;
+    console.log('[zdks] feed start #' + (A.feed.count + 1) + ' why=' + why +
+      ' t=' + Math.round(t * 10) / 10 + ' near=' + th.nearN + '/' + th.nearHp + 'hp cap=' + p._capacity +
+      ' target=' + A.feed.target);
+    return true;
+  }
+  function feedStep(st, t, th) {
+    if (!A.feed.active) return false;
+    moveTo(st, A.lanes.prime);
+    var p = st.players[0];
+    var elapsed = t - A.feed.startedAt;
+    var reduced = th.nearN <= Math.max(2, Math.floor((A.feed.entryN || 0) * 0.55));
+    var done = (th.nearN <= 2) || (t >= A.feed.until) || (p._capacity >= A.feed.target && reduced);
+    if (elapsed >= A.cfg.feedMinSec && done) {
+      A.feed.active = false;
+      A.feed.lastAt = t;
+      A.feed.count++;
+      console.log('[zdks] feed done #' + A.feed.count + ' t=' + Math.round(t * 10) / 10 +
+        ' cap=' + p._capacity + ' near=' + th.nearN + ' elapsed=' + Math.round(elapsed * 10) / 10 + 's');
+    }
+    return true;
+  }
+  function maybeFeed(st, gateLeft, t, th) {
+    if (feedStep(st, t, th)) return true;
+    var p = st.players[0];
+    var why = null;
+    if (p._capacity < A.cfg.feedEmergencyCap && th.nearN > 0) why = 'ammo';
+    else if (th.nearN >= 8) why = 'wave';
+    else if (th.nearHp >= 28) why = 'hpwave';
+    if (why && feedStart(st, gateLeft, th, t, why)) {
+      console.log('[zdks] dash red -> green feed lane');
+      moveTo(st, A.lanes.prime);
+      return true;
+    }
+    return false;
+  }
+
   // ---------- 相位机 ----------
   function setPhase(p, t) {
     if (A.phase === p) return;
     A.phase = p; A.phaseT0 = t;
+    if (p !== 'leftBreak' && p !== 'center') A.feed.active = false;
     console.log('[zdks] phase -> ' + p + ' @t' + t);
   }
   A.tick = function () {
@@ -355,6 +457,8 @@ window.__zdksStartStrategy = function () {
     var gC2 = gateCap('trigger_wall_1_11');
     var gC = (gC1 == null && gC2 == null) ? null : (gC1 || 0) + (gC2 || 0);
     var se = t - A.phaseT0;
+    var th = enemyThreat(st);
+    A.th = th;
 
     switch (A.phase) {
       case 'boot':
@@ -367,6 +471,9 @@ window.__zdksStartStrategy = function () {
         break;
       case 'leftBreak':
         if (gLeft != null && gLeft <= 0) { setPhase('harvest1', t); break; }
+        // 小怪压线/弹药见底：先回绿 x3 喂一轮，够数再回左红闸
+        // 先让观众看到杯子确实去红闸干活，至少 3 秒后再响应小怪
+        if (se >= 3 && maybeFeed(st, gLeft, t, th)) { A.recharge = false; break; }
         if (!A.recharge && p._capacity < 8 && p.hp < 110) { A.recharge = true; }
         if (A.recharge) {
           moveTo(st, A.lanes.prime);
@@ -374,16 +481,18 @@ window.__zdksStartStrategy = function () {
         } else {
           moveTo(st, A.lanes.left);
         }
-        if (se > 60) setPhase('harvest1', t);
+        if (se > A.cfg.leftBreakMaxSec) setPhase('harvest1', t);
         break;
       case 'harvest1':
         moveTo(st, A.lanes.left);
         if (se >= A.cfg.harvest1Sec) setPhase('center', t);
         break;
       case 'center':
+        // 中心红闸期间同样响应小怪：绿 x3 喂弹 -> 回中心
+        if (se >= 3 && maybeFeed(st, gC, t, th)) break;
         moveTo(st, A.lanes.center);
         if (p.config && p.config.id === 8) { setPhase('final', t); break; }
-        if (gC != null && gC <= 0 && se > 3) setPhase('final', t);
+        if (gC != null && gC <= 0 && se > 3) { setPhase('final', t); break; }
         if (se > A.cfg.centerTimeoutSec) setPhase('final', t);
         break;
       case 'final':
@@ -409,6 +518,11 @@ window.__zdksStartStrategy = function () {
         gC: gC,
         wid: p.config ? p.config.id : null,
         heal: A.healed,
+        feed: A.feed.active ? 1 : 0,
+        feedN: A.feed.count,
+        near: th.nearN,
+        nearHp: th.nearHp,
+        capT: A.feed.target,
         status: st._status
       });
       if (A.rows.length > 2400) A.rows.splice(0, 600);
@@ -421,13 +535,15 @@ window.__zdksStartStrategy = function () {
       over: A.over, phase: A.phase, lanes: A.lanes, healed: A.healed,
       t: o.t, x: o.x, cap: o.cap, hp: o.hp, kill: o.kill, left: o.left,
       en: o.en, cup: o.cup, wid: o.wid, gL: o.gL, gC: o.gC,
+      feed: A.feed.active ? 1 : 0, feedN: A.feed.count, feedReason: A.feed.reason,
+      feedTarget: A.feed.target, near: A.th ? A.th.nearN : null,
+      nearHp: A.th ? A.th.nearHp : null,
       n: A.n, errN: A.errN, err: A.err
     };
   };
   A.stop = function () { if (A._id) clearInterval(A._id); A.live = false; };
 
   A._id = setInterval(A.tick, A.cfg.tickMs);
-  console.log('[zdks] strategy v1 boot (level 4: prime x3 -> break -200 -> x16 harvest -> weapon8 -> x16 end)');
+  console.log('[zdks] strategy v2 boot (level 4 + reactive red-gate <-> green x3 feed/return micro-ops)');
 })();
-
 };
