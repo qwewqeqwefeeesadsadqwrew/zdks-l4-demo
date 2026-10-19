@@ -80,7 +80,8 @@
       return null;
     }
     if (!getQueryString("t")) {
-      window.location.href += ("?t=" + Date.now());
+      // 兼容演示页带参数（如 ?route=center）：已有查询串时用 & 追加，避免无限刷新
+      window.location.href += ((window.location.search ? "&" : "?") + "t=" + Date.now());
     }
     window["__GM"] = 1;
     window["__VERSION"] = "lts777";
