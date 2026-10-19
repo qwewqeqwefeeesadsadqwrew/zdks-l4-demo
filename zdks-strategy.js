@@ -42,9 +42,9 @@ window.__zdksStartStrategy = function () {
       maxHeals: 3,
       healCooldownSec: 12,
       // 微操参数：喂弹量 = base + 威胁血量*hp + 威胁数量*n，封顶 max
-      feedMaxSec: 3.5,
-      feedMinSec: 1.8,
-      feedCooldownSec: 4,
+      feedMaxSec: 2.5,
+      feedMinSec: 1.2,
+      feedCooldownSec: 3,
       feedTargetBase: 45,
       feedTargetPerHp: 3,
       feedTargetPerEnemy: 2,
@@ -347,24 +347,30 @@ window.__zdksStartStrategy = function () {
     }
     return { nearN: nearN, nearHp: nearHp, minX: minX, limit: limit, cap: p._capacity };
   }
+  // 左闸打通后（center）用左 ×16 喂玩家；没通之前才用右 ×3。
+  // 这就是“一会喂子弹、一会打通道”的切换：center 阶段红闸 <-> 左 ×16。
+  function feedLane() {
+    return A.phase === 'center' ? A.lanes.left : A.lanes.prime;
+  }
+  function moveToFeed(st) {
+    var lane = feedLane();
+    if (lane === A.lanes.left) moveTo(st, lane); // ×16 是命脉，踩正位
+    else patrolTo(st, lane, 12, 1.6);             // 右 ×3 可以小幅摆
+  }
   function feedStart(st, gateLeft, th, t, why) {
     if (A.feed.active) return false;
     if (gateLeft != null && gateLeft <= 15) return false; // 红闸快破，先打完
+    // 中心阶段左 ×16 来回限 2 次：杯子子弹是 final ×16 的种子，不能提前喂光
+    if (A.phase === 'center' && A.feed.centerCount >= 2) return false;
     var p = st.players[0];
-    // 中心阶段是拿武器 8 的关键：只在中盘或真急时回防，且最多 2 次
-    if (A.phase === 'center') {
-      var urgent = p._capacity < 80 || p.hp < 120;
-      var mid = gateLeft != null && gateLeft <= 130;
-      if (A.feed.centerCount >= 1 && !urgent) return false;
-      if (A.feed.centerCount >= 2) return false;
-      if (!urgent && !mid) return false;
-    }
-    var cold = (t - A.feed.lastAt) < A.cfg.feedCooldownSec;
+    // 左闸阶段 2.5 秒一循环；中心阶段要保红闸进度，拉长到 4.5 秒冷却
+    var cd = A.phase === 'center' ? 7 : A.cfg.feedCooldownSec;
+    var cold = (t - A.feed.lastAt) < cd;
     var emergency = p._capacity < A.cfg.feedEmergencyCap && th.nearN > 0;
     if (cold && !emergency) return false;
     A.feed.active = true;
     A.feed.startedAt = t;
-    var maxSec = A.phase === 'center' ? Math.min(A.cfg.feedMaxSec, 2.5) : A.cfg.feedMaxSec;
+    var maxSec = A.phase === 'center' ? Math.min(A.cfg.feedMaxSec, 1.2) : A.cfg.feedMaxSec;
     A.feed.until = t + maxSec;
     if (A.phase === 'center') A.feed.centerCount++;
     A.feed.entryN = th.nearN;
@@ -380,7 +386,7 @@ window.__zdksStartStrategy = function () {
   }
   function feedStep(st, t, th) {
     if (!A.feed.active) return false;
-    patrolTo(st, A.lanes.prime, 12, 1.6);
+    moveToFeed(st);
     var p = st.players[0];
     var elapsed = t - A.feed.startedAt;
     var reduced = th.nearN <= Math.max(2, Math.floor((A.feed.entryN || 0) * 0.55));
@@ -402,8 +408,8 @@ window.__zdksStartStrategy = function () {
     else if (th.nearN >= 8) why = 'wave';
     else if (th.nearHp >= 28) why = 'hpwave';
     if (why && feedStart(st, gateLeft, th, t, why)) {
-      console.log('[zdks] dash red -> green feed lane');
-      patrolTo(st, A.lanes.prime, 12, 1.6);
+      console.log('[zdks] dash red -> feed lane ' + (feedLane() === A.lanes.left ? 'left x16' : 'right x3'));
+      moveToFeed(st);
       return true;
     }
     return false;
@@ -414,6 +420,7 @@ window.__zdksStartStrategy = function () {
     if (A.phase === p) return;
     A.phase = p; A.phaseT0 = t;
     if (p !== 'leftBreak' && p !== 'center') A.feed.active = false;
+    if (p !== 'center') A.weaponWaitT0 = null;
     console.log('[zdks] phase -> ' + p + ' @t' + t);
   }
   A.tick = function () {
@@ -497,12 +504,17 @@ window.__zdksStartStrategy = function () {
         if (se >= A.cfg.harvest1Sec) setPhase('center', t);
         break;
       case 'center':
-        // 中心红闸期间同样响应小怪：绿 x3 喂弹 -> 回中心
+        // 中心红闸期间响应小怪：回左 ×16 喂玩家 -> 回中心打闸
         if (se >= 3 && maybeFeed(st, gC, t, th)) break;
-        // 中心是拿武器 8 的硬时限：踩正中心位，不摆；走位靠中盘那一次短喂
+        // 中心是拿武器 8 的硬时限：踩正中心位，不摆；走位靠中盘短喂
         moveTo(st, A.lanes.center);
         if (p.config && p.config.id === 8) { setPhase('final', t); break; }
-        if (gC != null && gC <= 0 && se > 3) { setPhase('final', t); break; }
+        if (gC != null && gC <= 0) {
+          // 破闸后停在中心等武器 8 掉落/拾取，最多 6 秒，别直接去 ×16 错过武器
+          if (A.weaponWaitT0 == null) { A.weaponWaitT0 = t; console.log('[zdks] center gates clear; wait weapon 8'); }
+          if (t - A.weaponWaitT0 > 6) { setPhase('final', t); }
+          break;
+        }
         if (se > A.cfg.centerTimeoutSec) setPhase('final', t);
         break;
       case 'final':
@@ -556,6 +568,6 @@ window.__zdksStartStrategy = function () {
   A.stop = function () { if (A._id) clearInterval(A._id); A.live = false; };
 
   A._id = setInterval(A.tick, A.cfg.tickMs);
-  console.log('[zdks] strategy v3 boot (patrol movement + denser feed cycles; HUD removed by request)');
+  console.log('[zdks] strategy v4 boot (short alternation: left red<->green x3; center red<->left x16; no HUD)');
 })();
 };
