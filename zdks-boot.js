@@ -18,9 +18,18 @@
     startedAt: Date.now(),
     hudEl: null,
     lastHud: '',
-    act: { key: '', n: 0, at: 0 }
+    act: { key: '', n: 0, at: 0 },
+    lastKill: null,
+    stallAt: 0
   };
   window.__zdksBoot = B;
+
+  // 同一个 index.html 页面壳：?level=1 -> 第 1 关；默认第 4 关
+  var LV = 4;
+  try {
+    var qm = (location.search || '').match(/[?&]level=(1|4)(?:&|$)/);
+    if (qm) LV = +qm[1];
+  } catch (e) { }
 
   function log() {
     try { console.log.apply(console, ['[zdks-boot]'].concat([].slice.call(arguments))); } catch (e) { }
@@ -101,8 +110,9 @@
 
   function strategy() {
     if (!window.__zdksAuto || !window.__zdksAuto.live) {
-      if (typeof window.__zdksStartStrategy === 'function') {
-        try { window.__zdksStartStrategy(); log('策略已启动'); } catch (e) { log('策略启动失败', e && e.message); }
+      var fn = (LV === 1 ? window.__zdksStartStrategyL1 : window.__zdksStartStrategy);
+      if (typeof fn === 'function') {
+        try { fn(); log('策略已启动 (L' + LV + ')'); } catch (e) { log('策略启动失败', e && e.message); }
       }
     }
   }
@@ -115,8 +125,8 @@
 
     var st = nav.stateSnap();
 
-    // 正在第4关：启动/重启策略
-    if (st && st.level === 4 && st.status === 1) {
+    // 正在目标关：启动/重启策略
+    if (st && st.level === LV && st.status === 1) {
       B.phase = 'play';
       B.loseAt = 0; B.hallAt = 0;
       strategy();
@@ -124,7 +134,16 @@
       var fN = (A.feed && A.feed.count) || 0;
       var fA = !!(A.feed && A.feed.active);
       var microTxt = fA ? ' · 回防喂弹…' : (fN ? ' · 喂弹 ' + fN + ' 次' : '');
-      hud('自动演示 · 第4关 · 击杀 ' + st.kill + '/' + st.total + microTxt + ' · ' + Math.floor(st.t) + 's');
+      hud('自动演示 · 第' + LV + '关 · 击杀 ' + st.kill + '/' + st.total + microTxt + ' · ' + Math.floor(st.t) + 's');
+      if (LV === 1) {
+        // 第 1 关没有通关判定：杯子漏完 + 击杀停滞 15 秒 -> 整页重载重开
+        if (st.cup != null && st.cup <= 0) {
+          if (B.lastKill === st.kill) {
+            if (!B.stallAt) B.stallAt = Date.now();
+            if (Date.now() - B.stallAt > 15000) { log('replay: cup empty, kill stalled at ' + st.kill); location.reload(); return; }
+          } else { B.lastKill = st.kill; B.stallAt = 0; }
+        } else { B.lastKill = st.kill; B.stallAt = 0; }
+      }
       return;
     }
 
@@ -146,7 +165,7 @@
       var wt = (st && st.total) || 869;
       var wA = window.__zdksAuto || {};
       var wF = (wA.feed && wA.feed.count) || 0;
-      hud('第4关 通关 ✓ 击杀 ' + (wk != null ? wk : '?') + '/' + wt + (wF ? ' · 喂弹 ' + wF + ' 次' : ''), 'win');
+      hud('第' + LV + '关 通关 ✓ 击杀 ' + (wk != null ? wk : '?') + '/' + wt + (wF ? ' · 喂弹 ' + wF + ' 次' : ''), 'win');
       log('WIN (end panel)');
       return;
     }
@@ -167,7 +186,7 @@
         B.live = false;
         B.phase = 'won';
         var aF = (A.feed && A.feed.count) || 0;
-        hud('第4关 通关 ✓ ' + A.over.replace(/^WIN\s*/, '') + (aF ? ' · 喂弹 ' + aF + ' 次' : ''), 'win');
+        hud('第' + LV + '关 通关 ✓ ' + A.over.replace(/^WIN\s*/, '') + (aF ? ' · 喂弹 ' + aF + ' 次' : ''), 'win');
         log('WIN', A.over);
         return;
       }
@@ -177,7 +196,7 @@
         if (rd) { hud('未通关，重新挑战…'); act('retry', rd); }
         else if (nav.closeEnd()) { hud('未通关，关闭结算…'); }
         else if (nav.backToHall()) { hud('未通关，返回大厅…'); }
-        else { hud('未通关，重新进入第4关…'); }
+        else { hud('未通关，重新进入第' + LV + '关…'); }
         // 清掉失败标记，允许下一轮重新启动策略（旧实例已停）
         A.over = null;
         return;
@@ -192,7 +211,7 @@
       return;
     }
 
-    if (st && st.status === 1 && st.level !== 4) {
+    if (st && st.status === 1 && st.level !== LV) {
       B.phase = 'wrong-level'; hud('返回大厅…');
       nav.backToHall();
       return;
@@ -201,8 +220,8 @@
     var agree = nav.textDom('同意');
     if (agree) { B.phase = 'agree'; hud('自动进入…'); act('agree', agree); return; }
 
-    var l4 = nav.levelButtonDom('第4关', ['btnUnlock', 'btnStart']);
-    if (l4 && l4.dom) { B.phase = 'level4'; hud('进入第4关…'); act('l4-' + l4.kind, l4.dom); return; }
+    var lvBtn = nav.levelButtonDom(LV === 1 ? '第1关' : '第4关', ['btnUnlock', 'btnStart']);
+    if (lvBtn && lvBtn.dom) { B.phase = 'level' + LV; hud('进入第' + LV + '关…'); act('lv-' + lvBtn.kind, lvBtn.dom); return; }
 
     var hall = nav.textDom('让子弹射');
     if (hall) {

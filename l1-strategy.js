@@ -1,5 +1,5 @@
 // l1-strategy.js —— 由 autoplay/l1-strategy.js 生成，页面内可重复启动
-window.__zdksStartStrategy = function () {
+window.__zdksStartStrategyL1 = function () {
 // l1-strategy.js —— 《噩梦模拟器 · 让子弹射》第1关 页内自动玩闭环（v5 打法移植）
 // 路线（默认 center）：右 ×3 喂弹道 <-> 中列 -300/-500 打通道 -> 武器 8 -> 右 ×3 终盘
 // 备选路线（left）：左 -250 开门 -> 左 ×16 收割/喂玩家 -> 中列 -300 通道 -> 左 ×16 终盘

@@ -104,8 +104,8 @@
 
   function strategy() {
     if (!window.__zdksAuto || !window.__zdksAuto.live) {
-      if (typeof window.__zdksStartStrategy === 'function') {
-        try { window.__zdksStartStrategy(); log('策略已启动'); } catch (e) { log('策略启动失败', e && e.message); }
+      if (typeof window.__zdksStartStrategyL1 === 'function') {
+        try { window.__zdksStartStrategyL1(); log('策略已启动'); } catch (e) { log('策略启动失败', e && e.message); }
       }
     }
   }
