@@ -1,6 +1,7 @@
-// zlzs-boot.js — 我来掌勺演示站引导：解锁预置 / 资源根指向本站 / 前 5 关洗牌式无限循环
+// zlzs-boot.js — 我来掌勺演示站引导：解锁预置 / 资源根指向本站 / 20 关洗牌式无限循环
 // 说明：不改游戏文件；解锁用游戏自己的存档键，资源根覆盖运行时 getter，玩法全部走游戏自身判定
-// 循环规则：每一轮把 5 关洗牌（Fisher-Yates），一轮打完重新洗牌；新一轮第一关不与上一轮最后一关相同
+// 循环规则：每一轮把池内关卡洗牌（Fisher-Yates，轮内不重复），排列历史去重（轮间不重复、刷新保持）；
+// 新一轮第一关不与上一轮最后一关相同；URL 可用 ?levels=1,354,... 指定测试池
 (function () {
   var CACHE = 'WoLaiZhangShaoV1_';
   try {
@@ -36,19 +37,31 @@
     return shuffle(pool);
   }
 
-  function loadHistory() {
-    try { var h = JSON.parse(localStorage.getItem('zlzsDemoHistory') || '[]'); return Array.isArray(h) ? h : []; } catch (e) { return []; }
+  function loadHistory(key) {
+    try { var h = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(h) ? h : []; } catch (e) { return []; }
   }
-  function saveHistory(h) {
-    try { localStorage.setItem('zlzsDemoHistory', JSON.stringify(h)); } catch (e) {}
+  function saveHistory(key, h) {
+    try { localStorage.setItem(key, JSON.stringify(h)); } catch (e) {}
   }
 
+  var DEFAULT_POOL = [1, 354, 271, 347, 53, 191, 367, 324, 188, 230, 346, 270, 366, 365, 364, 363, 362, 361, 360, 359];
+  var POOL = DEFAULT_POOL.slice();
+  try {
+    var q = new URLSearchParams(location.search).get('levels');
+    if (q) {
+      var t = q.split(',').map(function (x) { return parseInt(x, 10); }).filter(function (x) { return x > 0; });
+      if (t.length) POOL = t;
+    }
+  } catch (e) {}
+  var HIST_KEY = 'zlzsDemoHistory_' + POOL.join('_');
+
   var DEMO = {
-    pool: [1, 354, 271, 347, 53],
+    pool: POOL,
     queue: [],
     qi: 0,
     round: 1,
-    history: loadHistory(),
+    history: loadHistory(HIST_KEY),
+    histKey: HIST_KEY,
     lastFinished: null,
     state: 'boot',
     log: [],
@@ -61,10 +74,10 @@
       DEMO.round = 1;
       DEMO.qi = 0;
       DEMO.lastFinished = null;
-      DEMO.history = loadHistory();
+      DEMO.history = loadHistory(HIST_KEY);
       DEMO.queue = newQueue(DEMO.pool, null, DEMO.history);
       DEMO.history.push(DEMO.queue.join(','));
-      saveHistory(DEMO.history);
+      saveHistory(HIST_KEY, DEMO.history);
       setTimeout(loop, 400);
     },
     status: function () {
@@ -77,7 +90,7 @@
   };
   DEMO.queue = newQueue(DEMO.pool, null, DEMO.history);
   DEMO.history.push(DEMO.queue.join(','));
-  saveHistory(DEMO.history);
+  saveHistory(HIST_KEY, DEMO.history);
   window.__zlzsDemo = DEMO;
 
   function mcc() {
@@ -115,11 +128,42 @@
     } catch (e2) {}
   }
 
+  // 倒计时到点会弹 UI_AddTime（加时广告弹窗）；h5_noAds 下广告即时空放，点游戏自己的加时按钮继续
+  function pressAddTime(m) {
+    try {
+      var ui = m.UI.GetUI(m.enum_ui.AddTime);
+      if (ui) {
+        var btn = ui.addTimeBtn || ui.addTime;
+        if (btn && btn.node) { btn.node.emit('click'); DEMO.log.push('addtime'); return true; }
+      }
+    } catch (e) {}
+    try {
+      var found = null;
+      (function walk(n) {
+        if (!n || found) return;
+        if (n.name === 'UI_AddTime' && n.activeInHierarchy) { found = n; return; }
+        for (var i = 0; i < n.children.length; i++) walk(n.children[i]);
+      })(cc.find('Canvas'));
+      if (found) {
+        var comps = found._components || [];
+        for (var j = 0; j < comps.length; j++) {
+          if (comps[j].addTimeBtn && comps[j].addTimeBtn.node) {
+            comps[j].addTimeBtn.node.emit('click');
+            DEMO.log.push('addtime');
+            return true;
+          }
+        }
+      }
+    } catch (e2) {}
+    return false;
+  }
+
   function loop() {
     if (DEMO.stopped) return;
     var m = mcc();
     if (!m || !m.gameData || !m.UI) { setTimeout(loop, 300); return; }
     closeSignIn(m);
+    pressAddTime(m);
 
     if (DEMO.state === 'boot') {
       var lvUI = null;
@@ -189,7 +233,7 @@
         DEMO.round++;
         DEMO.queue = newQueue(DEMO.pool, DEMO.lastFinished, DEMO.history);
         DEMO.history.push(DEMO.queue.join(','));
-        saveHistory(DEMO.history);
+        saveHistory(HIST_KEY, DEMO.history);
         DEMO.qi = 0;
         DEMO.log.push('round ' + DEMO.round + ' order ' + DEMO.queue.join(','));
       }

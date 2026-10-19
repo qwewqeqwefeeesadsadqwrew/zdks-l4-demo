@@ -42,7 +42,17 @@
   function findAny(name) {
     var p = preComp();
     if (!p) return null;
-    return findN(p.node, name) || findN(CC().director.getScene(), name);
+    var first = null;
+    (function walk(n) {
+      if (!n || first && first.activeInHierarchy) return;
+      if (n.name === name) {
+        if (n.activeInHierarchy) { first = n; return; }
+        if (!first) first = n;
+      }
+      for (var i = 0; i < n.children.length; i++) walk(n.children[i]);
+    })(p.node);
+    if (first && first.activeInHierarchy) return first;
+    return first || findN(CC().director.getScene(), name);
   }
   function worldOf(node) { return node.parent.convertToWorldSpaceAR(node.position); }
 
@@ -195,9 +205,119 @@
     A.stats.rubs++;
   }
 
+  // 纯提示条目（Key 且无 Step/Tween）不推进任何状态：查询下一步时临时把它们从场景配置里摘掉，
+  // 查完立刻原样放回（不碰节点 active，避免 onDisable 副作用）。
+  function pickActionTip(p) {
+    var arr = (p && p.currentSceneConfig) || [];
+    var removed = [];
+    for (var i = arr.length - 1; i >= 0; i--) {
+      var it = arr[i];
+      if (it && it.Key && !it.Step && (!it.Tween || !it.Tween.length)) { removed.push([i, it]); arr.splice(i, 1); }
+    }
+    var t = null;
+    try { t = p.getTipConfig(); }
+    finally {
+      removed.sort(function (a, b) { return a[0] - b[0]; });
+      for (var j = 0; j < removed.length; j++) arr.splice(removed[j][0], 0, removed[j][1]);
+    }
+    return t;
+  }
+
+  // 教学提示（Key 条目、无 Step/Tween）本身不是可执行项：
+  // 从当前场景配置里找「点击后会把该提示节点 active=false」的那个条目，点它。
+  function findUnlocker(tip, p) {
+    var list = (p && p.currentSceneConfig) || [];
+    for (var i = 0; i < list.length; i++) {
+      var it = list[i];
+      if (!it || it === tip || it.Step) continue;
+      var tw = it.Tween || [];
+      for (var j = 0; j < tw.length; j++) {
+        var e = tw[j];
+        if (!e || e.type !== 'active' || e.value !== false) continue;
+        var names = typeof it.node === 'string' ? [it.node] : it.node;
+        var hit = false;
+        if (typeof e.node === 'string') { for (var k = 0; k < names.length; k++) if (names[k] === e.node) hit = true; }
+        else if (Object.prototype.toString.call(e.node) === '[object Array]') { for (var k2 = 0; k2 < names.length; k2++) if (e.node.indexOf(names[k2]) >= 0) hit = true; }
+        if (!hit) continue;
+        for (var m = 0; m < names.length; m++) {
+          var cand = findAny(names[m]);
+          if (cand && cand.activeInHierarchy) return cand;
+        }
+      }
+    }
+    return null;
+  }
+
+  // 无 Value 的 TouchMove = 自由拖动 + 来回擦：节点上挂 TouchRubOut 时，
+  // 把它的 check 节点拖进 maskItem，再在 mask 里来回划，游戏自己的碰撞逻辑会计数推进。
+  function findRubComp(node) {
+    var cs = node._components || [];
+    for (var i = 0; i < cs.length; i++) {
+      var c = cs[i];
+      if (c && c.maskItem && c.touchNode && c.tweenStr) return c;
+    }
+    return null;
+  }
+  function worldOfNode(n) { return n.parent.convertToWorldSpaceAR(n.position); }
+  function rubOut(node, comp) {
+    var maskComp = comp.maskItem, check = comp.touchNode;
+    var rub = maskComp && maskComp.rubNode;
+    var maskNode = maskComp && (maskComp.node || maskComp);
+    if (!maskComp || !maskNode || !maskNode.activeInHierarchy || !check || !check.parent || !rub || !rub.parent) return false;
+    var sp = bestWorld(node);
+    var cp = worldOfNode(check);
+    var x0 = rub.parent.convertToWorldSpaceAR(CC().v2(-rub.width / 2, -rub.height / 2));
+    var x1 = rub.parent.convertToWorldSpaceAR(CC().v2(rub.width / 2, rub.height / 2));
+    var left = Math.min(x0.x, x1.x), right = Math.max(x0.x, x1.x);
+    var bottom = Math.min(x0.y, x1.y), top = Math.max(x0.y, x1.y);
+    var inset = 22, gap = 42;
+    var path = [], row = 0;
+    for (var y = bottom + inset; y <= top - inset + 0.1; y += gap) {
+      if (row % 2 === 0) { for (var x = left + inset; x <= right - inset + 0.1; x += gap) path.push([x, y]); }
+      else { for (var x2 = right - inset; x2 >= left + inset - 0.1; x2 -= gap) path.push([x2, y]); }
+      row++;
+    }
+    // 起点：先到路径第一个点
+    if (path.length) path.unshift([left + inset, bottom + inset]);
+    var curC = { x: cp.x, y: cp.y }, curG = { x: sp.x, y: sp.y };
+    var stepMs = 22 + Math.random() * 18;
+    A._gestureUntil = Date.now() + path.length * stepMs * 2 + 1200;
+    emit(node, CC().Node.EventType.TOUCH_START, sp.x, sp.y, 0, 0);
+    A.stats.rubs++;
+    var i = 0;
+    function tickRub() {
+      try {
+        if (i >= path.length) {
+          emit(node, CC().Node.EventType.TOUCH_END, curG.x, curG.y, 0, 0);
+          return;
+        }
+        var tgt = path[i++];
+        var dx = tgt[0] - curC.x, dy = tgt[1] - curC.y;
+        // 分两小步，保证每步都有 MOVE 事件喂给 updateMaskRub
+        var hx = dx / 2, hy = dy / 2;
+        curC.x += hx; curC.y += hy; curG.x += hx; curG.y += hy;
+        emit(node, CC().Node.EventType.TOUCH_MOVE, curG.x, curG.y, hx, hy);
+        setTimeout(function () {
+          try {
+            curC.x += hx; curC.y += hy; curG.x += hx; curG.y += hy;
+            emit(node, CC().Node.EventType.TOUCH_MOVE, curG.x, curG.y, hx, hy);
+            setTimeout(tickRub, stepMs);
+          } catch (e) {}
+        }, stepMs);
+      } catch (e) {}
+    }
+    setTimeout(tickRub, 30 + Math.random() * 40);
+    return true;
+  }
+
   function perform(tip, node) {
     var t = tip.Type;
     if (t === 'TouchMove' || t === 'TouchMoveInter') {
+      if (!tip.Value) {
+        var rc = findRubComp(node);
+        if (rc && rubOut(node, rc)) { A.log.push('RUBOUT ' + tip.node); return true; }
+        A.stats.skips++; A.log.push('NO_VALUE ' + tip.node); return false;
+      }
       var names = typeof tip.Value === 'string' ? [tip.Value] : tip.Value;
       var target = null;
       for (var i = 0; i < names.length; i++) {
@@ -266,9 +386,28 @@
       if (!repeat && prog === lastProg && now - lastAt < 2200) { setTimeout(function () { tick(g); }, 180); return; }
       var node = findAny(tip.node);
       if (!node) { A.log.push('NO_NODE ' + tip.node); A.stats.skips++; lastProg = prog; lastAt = now; setTimeout(function () { tick(g); }, 300); return; }
+      var keyOnly = tip.Key && !tip.Step && (!tip.Tween || !tip.Tween.length);
+      var unlocker = keyOnly ? findUnlocker(tip, p) : null;
       lastProg = prog; lastAt = now;
       A.stats.actions++;
-      var ok = perform(tip, node);
+      var ok;
+      if (unlocker) {
+        tapNode(unlocker);
+        ok = true;
+        A.log.push('UNLOCK ' + tip.node + ' via ' + unlocker.name);
+      } else if (keyOnly) {
+        var t2 = pickActionTip(p);
+        if (t2) {
+          tip = t2;
+          node = findAny(tip.node);
+          ok = node ? perform(tip, node) : false;
+          if (node) A.log.push('SKIPHINT ' + tip.Type + ' ' + tip.node);
+        } else {
+          ok = perform(tip, node);
+        }
+      } else {
+        ok = perform(tip, node);
+      }
       if (ok) {
         A.log.push((tip.Type || '?') + ' ' + tip.node + (tip.Value && typeof tip.Value !== 'object' ? ' ' + tip.Value : ''));
         if (A.log.length > 200) A.log.splice(0, A.log.length - 200);
@@ -283,6 +422,7 @@
       else gap = 1000 + Math.random() * 2000;
       lastMini = miniNow; lastStep = stepNow;
       waitUntil = Date.now() + Math.max(dur * 1000 + 650 + Math.random() * 350, gap);
+      if (A._gestureUntil && A._gestureUntil > waitUntil) waitUntil = A._gestureUntil;
       setTimeout(function () { tick(g); }, 200);
     } catch (e) {
       A.err = String(e) + '\n' + (e.stack || '');
