@@ -139,11 +139,15 @@
 
     if (DEMO.state === 'next') {
       if (Date.now() < DEMO.nextAt) { setTimeout(loop, 200); return; }
-      var win2 = null;
-      try { win2 = m.UI.GetUI(m.enum_ui.Win); } catch (e) {}
-      if (win2) { try { win2.nextBtnClick(); } catch (e) { DEMO.log.push('next-err ' + e); } }
+      var nextLv = DEMO.levels[DEMO.idx];
+      try {
+        m.game.dispachEvent(m.enum_event.Remove_Level);
+        m.UI.closeAllUI();
+        m.game.enterGengLevel(nextLv);
+        DEMO.log.push('next ' + nextLv + ' @' + Math.round((Date.now() - (DEMO.t0 || Date.now())) / 1000) + 's');
+      } catch (e) { DEMO.log.push('next-err ' + e); }
       DEMO.state = 'loading';
-      setTimeout(loop, 1600);
+      setTimeout(loop, 1200);
       return;
     }
 
