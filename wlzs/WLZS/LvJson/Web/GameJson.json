@@ -1,0 +1,26 @@
+{
+    "recommendLv":[91,90,88,66,39],
+    "ZBLevels":[10,14,30],
+    "FeedLevels":[69,68,67,65,62,181,182,183,184,185],
+    "HuoKeFeedLevels":[
+        { "contentid":"CONTENT13470309890" , "level":143 ,  "name":"霉豆腐" }
+    ],
+    "levelTime":200,
+    "levelErrorNum":5,
+    "CDKEY":[],
+    "WXNOADS":"qweqsdfsdfa",
+    "signInConfig":[
+        { "day": 1 , "titleStr":"第1天" , "name":"免广告解锁关卡" , "spr":"texture/SiginIn/解锁一次" , "reward": "key", "rewardNum":1  },
+        { "day": 2 , "titleStr":"第2天" , "name":"免广告解锁关卡" , "spr":"texture/SiginIn/解锁一次" , "reward": "key", "rewardNum":1  },
+        { "day": 3 , "titleStr":"第3天" , "name":"全部解锁6小时" , "spr":"texture/SiginIn/6小时" , "reward": "allLevelTime", "rewardNum":6 },
+        { "day": 4 , "titleStr":"第4天" , "name":"免广告解锁关卡" , "spr":"texture/SiginIn/解锁一次" , "reward": "key", "rewardNum":1  },
+        { "day": 5 , "titleStr":"第5天" , "name":"免广告解锁关卡" , "spr":"texture/SiginIn/解锁一次" , "reward": "key", "rewardNum":1  },
+        { "day": 6 , "titleStr":"第6天" , "name":"提示道具" , "spr":"texture/SiginIn/tishi" , "reward": "tip", "rewardNum":1  },
+        { "day": 7 , "titleStr":"第7天" , "name":"全部解锁24小时" , "spr":"texture/SiginIn/24小时" , "reward": "allLevelTime", "rewardNum":24 }
+    ],
+    "PropConfig":[
+        { "id": 1 , "name":"加时道具" , "info":"增加游戏时间30s" , "spr":"texture/SiginIn/加时"  },
+        { "id": 2 , "name":"爆炸道具" , "info":"消除一个格子" , "spr":"texture/炸弹"  }
+    ],
+    "233AdsTime":60
+}

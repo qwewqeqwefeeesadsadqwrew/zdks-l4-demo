@@ -1,0 +1,1 @@
+function zjShenHe(){console.log("zjShenHe"),tt.navigateToScene({scene:"sidebar",success:()=>{console.log("navigate to scene success")},fail:e=>{console.log("navigate to scene fail: ",e)}})}
