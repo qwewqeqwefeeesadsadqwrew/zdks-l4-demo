@@ -355,7 +355,7 @@ window.__zdksStartStrategy = function () {
   function moveToFeed(st) {
     var lane = feedLane();
     if (lane === A.lanes.left) moveTo(st, lane); // ×16 是命脉，踩正位
-    else patrolTo(st, lane, 12, 1.6);             // 右 ×3 可以小幅摆
+    else patrolTo(st, lane, 14, 1.4);             // 右 ×3 可以在命中区里摆得更大
   }
   function feedStart(st, gateLeft, th, t, why) {
     if (A.feed.active) return false;
@@ -478,10 +478,10 @@ window.__zdksStartStrategy = function () {
     switch (A.phase) {
       case 'boot':
         setPhase('prime', t);
-        patrolTo(st, A.lanes.prime, 12, 1.6);
+        patrolTo(st, A.lanes.prime, 16, 1.4);
         break;
       case 'prime':
-        patrolTo(st, A.lanes.prime, 12, 1.6);
+        patrolTo(st, A.lanes.prime, 16, 1.4);
         if (p._capacity >= A.cfg.primeCap || t >= A.cfg.primeMaxSec) setPhase('leftBreak', t);
         break;
       case 'leftBreak':
@@ -491,23 +491,23 @@ window.__zdksStartStrategy = function () {
         if (se >= 3 && maybeFeed(st, gLeft, t, th)) { A.recharge = false; break; }
         if (!A.recharge && p._capacity < 8 && p.hp < 110) { A.recharge = true; }
         if (A.recharge) {
-          patrolTo(st, A.lanes.prime, 12, 1.6);
+          patrolTo(st, A.lanes.prime, 16, 1.4);
           if (p._capacity >= A.cfg.rechargeCap) { A.recharge = false; console.log('[zdks] recharge done @t' + Math.round(t * 10) / 10); }
         } else {
-          patrolTo(st, A.lanes.left, 12, 2.0);
+          patrolTo(st, A.lanes.left, 16, 1.8);
         }
         if (se > A.cfg.leftBreakMaxSec) setPhase('harvest1', t);
         break;
       case 'harvest1':
-        // 收割这 8 秒是弹药命脉，杯子踩正 ×16 位，不摆
-        moveTo(st, A.lanes.left);
+        // 收割这 8 秒是弹药命脉：在 ×16 命中区里小幅走位，别大摆
+        patrolTo(st, A.lanes.left, 5, 1.4);
         if (se >= A.cfg.harvest1Sec) setPhase('center', t);
         break;
       case 'center':
         // 中心红闸期间响应小怪：回左 ×16 喂玩家 -> 回中心打闸
         if (se >= 3 && maybeFeed(st, gC, t, th)) break;
-        // 中心是拿武器 8 的硬时限：踩正中心位，不摆；走位靠中盘短喂
-        moveTo(st, A.lanes.center);
+        // 中心是拿武器 8 的硬时限：命中区里小幅走位，别大摆；大走位靠中盘 2 次左 ×16 短喂
+        patrolTo(st, A.lanes.center, 5, 1.4);
         if (p.config && p.config.id === 8) { setPhase('final', t); break; }
         if (gC != null && gC <= 0) {
           // 破闸后停在中心等武器 8 掉落/拾取，最多 6 秒，别直接去 ×16 错过武器
@@ -518,8 +518,8 @@ window.__zdksStartStrategy = function () {
         if (se > A.cfg.centerTimeoutSec) setPhase('final', t);
         break;
       case 'final':
-        // ×16 是弹药命脉：弹量充足时小幅走位；低于 450 立刻回正位猛喂，清最后的大怪
-        if (p._capacity > 450) patrolTo(st, A.lanes.left, 8, 1.6);
+        // ×16 是弹药命脉：弹量充足时在命中区里加大走位；低于 450 立刻回正位猛喂，清最后的大怪
+        if (p._capacity > 450) patrolTo(st, A.lanes.left, 12, 1.4);
         else moveTo(st, A.lanes.left);
         break;
       default:
@@ -568,6 +568,6 @@ window.__zdksStartStrategy = function () {
   A.stop = function () { if (A._id) clearInterval(A._id); A.live = false; };
 
   A._id = setInterval(A.tick, A.cfg.tickMs);
-  console.log('[zdks] strategy v4 boot (short alternation: left red<->green x3; center red<->left x16; no HUD)');
+  console.log('[zdks] strategy v5 boot (safe-zone patrol widened; center 2 left-x16 feeds; no HUD)');
 })();
 };
