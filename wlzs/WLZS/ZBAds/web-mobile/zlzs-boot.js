@@ -36,10 +36,24 @@
   function closeSignIn(m) {
     try {
       var ui = m.UI.GetUI(m.enum_ui.SignIn);
-      if (!ui) return;
-      if (ui.closeThis) { ui.closeThis(); return; }
-      if (ui.hideBack && ui.hideAni) { ui.hideBack(); ui.hideAni(); ui.isOpen = false; }
+      if (ui) {
+        if (ui.closeThis) { ui.closeThis(); return; }
+        if (ui.hideBack && ui.hideAni) { ui.hideBack(); ui.hideAni(); ui.isOpen = false; return; }
+      }
     } catch (e) {}
+    try {
+      var tips = cc.find('Canvas/tipsUIs');
+      if (!tips) return;
+      for (var i = 0; i < tips.children.length; i++) {
+        var n = tips.children[i];
+        if (n.name !== 'UI_SignIn' || !n.activeInHierarchy) continue;
+        var comps = n._components || [], comp = null;
+        for (var j = 0; j < comps.length; j++) if (comps[j].closeBtn) { comp = comps[j]; break; }
+        if (comp && comp.closeBtn) { comp.closeBtn.emit('click'); }
+        else { n.active = false; }
+        return;
+      }
+    } catch (e2) {}
   }
 
   function loop() {
