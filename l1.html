@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+
+  <title>L1 噩梦模拟器</title>
+
+  <!--http://www.html5rocks.com/en/mobile/mobifying/-->
+  <meta name="viewport"
+        content="width=device-width,user-scalable=no,initial-scale=1,minimum-scale=1,maximum-scale=1,minimal-ui=true"/>
+
+  <!--https://developer.apple.com/library/safari/documentation/AppleApplications/Reference/SafariHTMLRef/Articles/MetaTags.html-->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+
+  <!-- force webkit on 360 -->
+  <meta name="renderer" content="webkit"/>
+  <meta name="force-rendering" content="webkit"/>
+  <!-- force edge on IE -->
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
+  <meta name="msapplication-tap-highlight" content="no">
+
+  <!-- force full screen on some browser -->
+  <meta name="full-screen" content="yes"/>
+  <meta name="x5-fullscreen" content="true"/>
+  <meta name="360-fullscreen" content="true"/>
+
+  <!--fix fireball/issues/3568 -->
+  <!--<meta name="browsermode" content="application.9e0b7.js">-->
+  <meta name="x5-page-mode" content="app">
+
+  <!--<link rel="apple-touch-icon" href=".png" />-->
+  <!--<link rel="apple-touch-icon-precomposed" href=".png" />-->
+
+  <link rel="stylesheet" type="text/css" href="style.f76d1.css"/>
+
+  <!-- 演示站固定 1x 渲染：手机高 DPR 下避免 4 倍像素拖慢帧率，保证自动演示不因掉帧输掉 -->
+  <script>
+    try {
+      Object.defineProperty(window, 'devicePixelRatio', {
+        configurable: true,
+        get: function () { return 1; }
+      });
+    } catch (e) { }
+  </script>
+
+</head>
+<body>
+  <div id="GameDiv" cc_exact_fit_screen="true">
+      <div id="Cocos3dGameContainer">
+        <canvas id="GameCanvas" oncontextmenu="event.preventDefault()" tabindex="99"></canvas>
+      </div>
+    </div>
+  
+
+<!-- Polyfills bundle. -->
+
+<script src="src/polyfills.bundle.5adbf.js" charset="utf-8"> </script>
+
+
+<!-- SystemJS support. -->
+<script src="src/system.bundle.543e6.js" charset="utf-8"> </script>
+
+<!-- Import map -->
+<script src="src/import-map.0a469.json" type="systemjs-importmap" charset="utf-8"> </script>
+
+<script>
+    System.import('./index.42e24.js').catch(function(err) { console.error(err); })
+</script>
+
+
+<script type="text/javascript" src="console-ban.min.js"></script>
+  <script>
+    function getQueryString(name) {
+      let reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)");
+      if (!window.location || !window.location.search) return null;
+      let r = window.location.search.substr(1).match(reg);
+      if (r != null) return decodeURIComponent(r[2]);
+      return null;
+    }
+    if (!getQueryString("t")) {
+      window.location.href += ("?t=" + Date.now());
+    }
+    window["__GM"] = 1;
+    window["__VERSION"] = "lts777";
+    if (window["ConsoleBan"]) {
+      window["ConsoleBan"].init({
+        redirect: '/404'
+      });
+    }
+  </script>
+
+  <!-- 自动演示：页面内导航 + 第4关自动玩（不改游戏文件/内存/判定） -->
+  <script src="zdks-nav.js" charset="utf-8"></script>
+  <script src="l1-strategy.js?v=2" charset="utf-8"></script>
+  <script src="l1-boot.js?v=2" charset="utf-8"></script>
+</body>
+        
+</html>
