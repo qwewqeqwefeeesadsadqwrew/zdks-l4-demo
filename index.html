@@ -5,7 +5,7 @@
 
   <title>噩梦模拟器</title>
   <!-- 并发限流：雷电自带浏览器的 HTTP/2 并发大文件会卡死，先排队再加载 -->
-  <script src="zdks-netq.js"></script>
+  <script src="zdks-netq.js?v=1"></script>
 
   <!--http://www.html5rocks.com/en/mobile/mobifying/-->
   <meta name="viewport"
@@ -74,17 +74,9 @@
 
 <script type="text/javascript" src="console-ban.min.js"></script>
   <script>
-    function getQueryString(name) {
-      let reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)");
-      if (!window.location || !window.location.search) return null;
-      let r = window.location.search.substr(1).match(reg);
-      if (r != null) return decodeURIComponent(r[2]);
-      return null;
-    }
-    if (!getQueryString("t")) {
-      // 兼容演示页带参数（如 ?level=1）：已有查询串时用 & 追加，避免 ?level=1?t= 无限刷新
-      window.location.href += ((window.location.search ? "&" : "?") + "t=" + Date.now());
-    }
+    // demo mirror: the game's cache-refresh redirect is removed on purpose;
+    // it appended ?t= on every load and looped forever when the URL already had ?level=1.
+    // Script versions below are bumped by hand instead of redirecting the page.
     window["__GM"] = 1;
     window["__VERSION"] = "lts777";
     if (window["ConsoleBan"]) {
@@ -95,10 +87,10 @@
   </script>
 
   <!-- 自动演示：页面内导航 + 第4关自动玩（不改游戏文件/内存/判定） -->
-  <script src="zdks-nav.js" charset="utf-8"></script>
-  <script src="zdks-strategy.js?v=5" charset="utf-8"></script>
-  <script src="l1-strategy.js?v=3" charset="utf-8"></script>
-  <script src="zdks-boot.js?v=6" charset="utf-8"></script>
+  <script src="zdks-nav.js?v=6" charset="utf-8"></script>
+  <script src="zdks-strategy.js?v=6" charset="utf-8"></script>
+  <script src="l1-strategy.js?v=4" charset="utf-8"></script>
+  <script src="zdks-boot.js?v=7" charset="utf-8"></script>
 </body>
         
 </html>
