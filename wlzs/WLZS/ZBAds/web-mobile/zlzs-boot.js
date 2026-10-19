@@ -1,5 +1,6 @@
-// zlzs-boot.js — 我来掌勺演示站引导：解锁预置 / 资源根指向本站 / 前 5 关自动连播
+// zlzs-boot.js — 我来掌勺演示站引导：解锁预置 / 资源根指向本站 / 前 5 关洗牌式无限循环
 // 说明：不改游戏文件；解锁用游戏自己的存档键，资源根覆盖运行时 getter，玩法全部走游戏自身判定
+// 循环规则：每一轮把 5 关洗牌（Fisher-Yates），一轮打完重新洗牌；新一轮第一关不与上一轮最后一关相同
 (function () {
   var CACHE = 'WoLaiZhangShaoV1_';
   try {
@@ -7,19 +8,76 @@
     localStorage.setItem(CACHE + 'allUnLockHour', '999999');
   } catch (e) {}
 
+  function shuffle(a) {
+    var r = a.slice();
+    for (var i = r.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = r[i]; r[i] = r[j]; r[j] = t;
+    }
+    return r;
+  }
+  // 新的一轮：洗牌式——① 每轮是本池的一个排列（轮内不重复）；
+  // ② 新一轮的排列不得出现在历史中（轮与轮不重复）；③ 首关不与上一轮末关相同。
+  // 120 种排列用尽后清空历史从头来（实际演示跑不到）。
+  function newQueue(pool, prevLast, history) {
+    var n = 1;
+    for (var f = 2; f <= pool.length; f++) n *= f;
+    for (var tries = 0; tries < 500; tries++) {
+      var q = shuffle(pool);
+      if (q.length > 1 && prevLast != null && q[0] === prevLast) continue;
+      if (history && history.indexOf(q.join(',')) >= 0) {
+        if (history.length >= n) history.length = 0;
+        continue;
+      }
+      return q;
+    }
+    // 兜底：清历史后再洗一次
+    if (history) history.length = 0;
+    return shuffle(pool);
+  }
+
+  function loadHistory() {
+    try { var h = JSON.parse(localStorage.getItem('zlzsDemoHistory') || '[]'); return Array.isArray(h) ? h : []; } catch (e) { return []; }
+  }
+  function saveHistory(h) {
+    try { localStorage.setItem('zlzsDemoHistory', JSON.stringify(h)); } catch (e) {}
+  }
+
   var DEMO = {
-    levels: [1, 354, 271, 347, 53],
-    idx: 0,
+    pool: [1, 354, 271, 347, 53],
+    queue: [],
+    qi: 0,
+    round: 1,
+    history: loadHistory(),
+    lastFinished: null,
     state: 'boot',
     log: [],
     stopped: false,
-    stop: function () { DEMO.stopped = true; },
-    start: function () { DEMO.stopped = false; DEMO.state = 'boot'; DEMO.idx = 0; setTimeout(loop, 400); },
     t0: 0,
+    stop: function () { DEMO.stopped = true; },
+    start: function () {
+      DEMO.stopped = false;
+      DEMO.state = 'boot';
+      DEMO.round = 1;
+      DEMO.qi = 0;
+      DEMO.lastFinished = null;
+      DEMO.history = loadHistory();
+      DEMO.queue = newQueue(DEMO.pool, null, DEMO.history);
+      DEMO.history.push(DEMO.queue.join(','));
+      saveHistory(DEMO.history);
+      setTimeout(loop, 400);
+    },
     status: function () {
-      return JSON.stringify({ state: DEMO.state, idx: DEMO.idx, level: DEMO.levels[DEMO.idx], log: DEMO.log.slice(-20) });
+      return JSON.stringify({
+        state: DEMO.state, round: DEMO.round, qi: DEMO.qi,
+        queue: DEMO.queue, level: DEMO.queue[DEMO.qi] || null, seenOrders: DEMO.history.length,
+        log: DEMO.log.slice(-25)
+      });
     }
   };
+  DEMO.queue = newQueue(DEMO.pool, null, DEMO.history);
+  DEMO.history.push(DEMO.queue.join(','));
+  saveHistory(DEMO.history);
   window.__zlzsDemo = DEMO;
 
   function mcc() {
@@ -67,7 +125,7 @@
       var lvUI = null;
       try { lvUI = m.UI.GetUI(m.enum_ui.Level); } catch (e) {}
       if (lvUI && m.gameData.selectLevel === 0) {
-        DEMO.log.push('main-ready');
+        DEMO.log.push('main-ready · round ' + DEMO.round + ' order ' + DEMO.queue.join(','));
         DEMO.state = 'enter';
         setTimeout(loop, 300);
       } else {
@@ -77,7 +135,7 @@
     }
 
     if (DEMO.state === 'enter') {
-      var lv = DEMO.levels[DEMO.idx];
+      var lv = DEMO.queue[DEMO.qi];
       cleanShells();
       try { m.game.enterGengLevel(lv); } catch (e) { DEMO.log.push('enter-err ' + e); }
       DEMO.log.push('enter ' + lv + ' @' + Math.round((Date.now() - (DEMO.t0 || (DEMO.t0 = Date.now()))) / 1000) + 's');
@@ -89,8 +147,8 @@
     if (DEMO.state === 'loading') {
       var shell = cc.find('Canvas/StalkPre_1');
       var pre = shell && shell.getComponent('StalkPre_1');
-      if (pre && m.gameData.selectLevel === DEMO.levels[DEMO.idx]) {
-        DEMO.log.push('loaded ' + DEMO.levels[DEMO.idx]);
+      if (pre && m.gameData.selectLevel === DEMO.queue[DEMO.qi]) {
+        DEMO.log.push('loaded ' + DEMO.queue[DEMO.qi]);
         DEMO.state = 'play';
         try { window.__zlzsAuto.start(); } catch (e) { DEMO.log.push('auto-err ' + e); }
       }
@@ -108,7 +166,7 @@
       try { st = JSON.parse(A.status()); } catch (e) {}
       if (!st.running) {
         if (st.why === 'scene-done') {
-          DEMO.log.push('clear ' + DEMO.levels[DEMO.idx]);
+          DEMO.log.push('clear ' + DEMO.queue[DEMO.qi]);
           DEMO.state = 'win';
         } else if (st.why && st.why !== 'stopped') {
           DEMO.log.push('auto-end ' + st.why);
@@ -124,13 +182,17 @@
       try { win = m.UI.GetUI(m.enum_ui.Win); } catch (e) {}
       if (!win) { setTimeout(loop, 500); return; }
       try { window.__zlzsAuto.stop(); } catch (e) {}
-      DEMO.log.push('win ' + DEMO.levels[DEMO.idx] + ' @' + Math.round((Date.now() - (DEMO.t0 || Date.now())) / 1000) + 's');
-      if (DEMO.idx >= DEMO.levels.length - 1) {
-        DEMO.state = 'done';
-        DEMO.log.push('all-done');
-        return;
+      DEMO.lastFinished = DEMO.queue[DEMO.qi];
+      DEMO.log.push('win ' + DEMO.lastFinished + ' @' + Math.round((Date.now() - (DEMO.t0 || Date.now())) / 1000) + 's');
+      DEMO.qi++;
+      if (DEMO.qi >= DEMO.queue.length) {
+        DEMO.round++;
+        DEMO.queue = newQueue(DEMO.pool, DEMO.lastFinished, DEMO.history);
+        DEMO.history.push(DEMO.queue.join(','));
+        saveHistory(DEMO.history);
+        DEMO.qi = 0;
+        DEMO.log.push('round ' + DEMO.round + ' order ' + DEMO.queue.join(','));
       }
-      DEMO.idx++;
       DEMO.state = 'next';
       DEMO.nextAt = Date.now() + 1000 + Math.random() * 2000;
       setTimeout(loop, 300);
@@ -139,7 +201,7 @@
 
     if (DEMO.state === 'next') {
       if (Date.now() < DEMO.nextAt) { setTimeout(loop, 200); return; }
-      var nextLv = DEMO.levels[DEMO.idx];
+      var nextLv = DEMO.queue[DEMO.qi];
       try {
         m.game.dispachEvent(m.enum_event.Remove_Level);
         m.UI.closeAllUI();
@@ -151,9 +213,8 @@
       return;
     }
 
-    if (DEMO.state === 'done') {
-      setTimeout(loop, 1000);
-    }
+    // 无限循环：不再有 done 终态
+    setTimeout(loop, 1000);
   }
   setTimeout(loop, 600);
 })();
