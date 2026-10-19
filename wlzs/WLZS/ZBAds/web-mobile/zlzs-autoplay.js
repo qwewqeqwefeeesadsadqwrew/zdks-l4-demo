@@ -85,6 +85,11 @@
       [r.x + r.w * 0.2, r.y + r.h * 0.8], [r.x + r.w * 0.8, r.y + r.h * 0.8],
       [cx, r.y + 10], [cx, r.y + r.h - 10]
     ];
+    // 每次随机打乱候选点顺序（避免每次都点同一位置）
+    for (var ci = cands.length - 1; ci > 0; ci--) {
+      var cj = Math.floor(Math.random() * (ci + 1));
+      var ct = cands[ci]; cands[ci] = cands[cj]; cands[cj] = ct;
+    }
     for (var c = 0; c < cands.length; c++) {
       var x = cands[c][0], y = cands[c][1], ok = true;
       for (var o = 0; o < others.length; o++) {
@@ -112,40 +117,58 @@
     node.emit(type, touchEvt(x, y, dx, dy));
   }
 
-  // 拖拽：源节点 → 目标节点（12 步，节点跟着 delta 移动，结束判定用节点矩形相交）
+  // 拖拽：源节点 → 目标节点。拟人：按下停 80ms，500ms 平滑移动（缓入缓出）
   function drag(node, target, steps) {
     var sp = bestWorld(node), tp = worldOf(target);
-    steps = steps || 12;
     emit(node, CC().Node.EventType.TOUCH_START, sp.x, sp.y, 0, 0);
-    for (var i = 1; i <= steps; i++) {
-      var x = sp.x + (tp.x - sp.x) * i / steps;
-      var y = sp.y + (tp.y - sp.y) * i / steps;
-      emit(node, CC().Node.EventType.TOUCH_MOVE, x, y, (tp.x - sp.x) / steps, (tp.y - sp.y) / steps);
-    }
-    emit(node, CC().Node.EventType.TOUCH_END, tp.x, tp.y, 0, 0);
     A.stats.drags++;
+    var DUR = 350 + Math.random() * 400, pressMs = 50 + Math.random() * 130;
+    var t0 = Date.now(), lx = sp.x, ly = sp.y;
+    function moveStep() {
+      try {
+        var t = Math.min(1, (Date.now() - t0) / DUR);
+        var e = t * t * (3 - 2 * t);
+        var x = sp.x + (tp.x - sp.x) * e;
+        var y = sp.y + (tp.y - sp.y) * e;
+        emit(node, CC().Node.EventType.TOUCH_MOVE, x, y, x - lx, y - ly);
+        lx = x; ly = y;
+        if (t < 1) { setTimeout(moveStep, 16); return; }
+        emit(node, CC().Node.EventType.TOUCH_END, tp.x, tp.y, 0, 0);
+      } catch (err) {}
+    }
+    setTimeout(moveStep, pressMs);
   }
 
   function tapNode(node) {
     var p = bestWorld(node);
     emit(node, CC().Node.EventType.TOUCH_START, p.x, p.y, 0, 0);
-    emit(node, CC().Node.EventType.TOUCH_END, p.x, p.y, 0, 0);
     A.stats.taps++;
+    setTimeout(function () {
+      try { emit(node, CC().Node.EventType.TOUCH_END, p.x, p.y, 0, 0); } catch (err) {}
+    }, 60 + Math.random() * 100);
   }
 
-  // 方向滑动：dx/dy 为设计坐标方向（y 向上），dist 为配置的 Value（设计像素）
+  // 方向滑动：dx/dy 为设计坐标方向（y 向上），dist 为配置的 Value（设计像素）。拟人：420ms 平滑
   function swipe(node, dx, dy, dist) {
     var p = bestWorld(node);
     var len = Math.max(20, Number(dist) || 30) + 20;
-    var N = 10;
     emit(node, CC().Node.EventType.TOUCH_START, p.x, p.y, 0, 0);
-    for (var i = 1; i <= N; i++) {
-      var x = p.x + dx * len * i / N;
-      var y = p.y + dy * len * i / N;
-      emit(node, CC().Node.EventType.TOUCH_MOVE, x, y, dx * len / N, dy * len / N);
-    }
-    emit(node, CC().Node.EventType.TOUCH_END, p.x + dx * len, p.y + dy * len, 0, 0);
     A.stats.swipes++;
+    var DUR = 300 + Math.random() * 300, pressMs = 40 + Math.random() * 100;
+    var t0 = Date.now(), lx = p.x, ly = p.y;
+    function moveStep() {
+      try {
+        var t = Math.min(1, (Date.now() - t0) / DUR);
+        var e = t * t * (3 - 2 * t);
+        var x = p.x + dx * len * e;
+        var y = p.y + dy * len * e;
+        emit(node, CC().Node.EventType.TOUCH_MOVE, x, y, x - lx, y - ly);
+        lx = x; ly = y;
+        if (t < 1) { setTimeout(moveStep, 16); return; }
+        emit(node, CC().Node.EventType.TOUCH_END, p.x + dx * len, p.y + dy * len, 0, 0);
+      } catch (err) {}
+    }
+    setTimeout(moveStep, pressMs);
   }
 
   function hold(node, seconds) {
@@ -153,7 +176,7 @@
     emit(node, CC().Node.EventType.TOUCH_START, p.x, p.y, 0, 0);
     setTimeout(function () {
       emit(node, CC().Node.EventType.TOUCH_END, p.x, p.y, 0, 0);
-    }, Math.max(200, (Number(seconds) || 2) * 1000 + 150));
+    }, Math.max(200, (Number(seconds) || 2) * 1000 + 150 + Math.random() * 400));
     A.stats.holds++;
   }
 
@@ -161,7 +184,7 @@
   function rub(node, seconds) {
     var p = bestWorld(node);
     emit(node, CC().Node.EventType.TOUCH_START, p.x, p.y, 0, 0);
-    var until = Date.now() + Math.max(800, (Number(seconds) || 1) * 1000 + 400);
+    var until = Date.now() + Math.max(800, (Number(seconds) || 1) * 1000 + 400 + Math.random() * 500);
     var dir = 1;
     (function loop() {
       if (Date.now() > until) { emit(node, CC().Node.EventType.TOUCH_END, p.x, p.y, 0, 0); return; }
@@ -198,7 +221,7 @@
     return false;
   }
 
-  var lastProg = '', lastAt = 0, idle = 0, gen = 0, waitUntil = 0;
+  var lastProg = '', lastAt = 0, idle = 0, gen = 0, waitUntil = 0, lastMini = -1, lastStep = -1;
   var REPEAT = { ClickMaxNum: 1, ClickTimeNum: 1, TouchCuo: 1 };
   function tweenDur(arr, depth) {
     var t = 0;
@@ -252,7 +275,14 @@
       }
       var dur = 0;
       try { dur = tweenDur(tip.Tween || [], 0); } catch (e) {}
-      waitUntil = Date.now() + (repeat ? 280 : Math.max(600, dur * 1000 + 1000));
+      var miniNow = p.currentMiniLv, stepNow = p.currentStepNum;
+      var sameGroup = (miniNow === lastMini && stepNow === lastStep);
+      var gap;
+      if (repeat) gap = 80 + Math.random() * 270;
+      else if (sameGroup) gap = 250 + Math.random() * 650;
+      else gap = 1000 + Math.random() * 2000;
+      lastMini = miniNow; lastStep = stepNow;
+      waitUntil = Date.now() + Math.max(dur * 1000 + 650 + Math.random() * 350, gap);
       setTimeout(function () { tick(g); }, 200);
     } catch (e) {
       A.err = String(e) + '\n' + (e.stack || '');
@@ -262,7 +292,7 @@
 
   A.start = function () {
     A.running = true; A._why = null; A.err = null;
-    lastProg = ''; lastAt = 0; idle = 0;
+    lastProg = ''; lastAt = 0; idle = 0; lastMini = -1; lastStep = -1;
     gen++;
     tick(gen);
     return 'started';
