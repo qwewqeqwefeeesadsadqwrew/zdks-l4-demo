@@ -225,6 +225,10 @@
     var l4 = nav.levelButtonDom('第1关', ['btnUnlock', 'btnStart']);
     if (l4 && l4.dom) { B.phase = 'level4'; hud('进入第1关…'); act('l4-' + l4.kind, l4.dom); return; }
 
+    // level-up reward picker (three cards): pick the middle one so the demo keeps going
+    var reward = nav.rewardDom ? nav.rewardDom() : null;
+    if (reward) { B.phase = 'reward'; hud('选择升级奖励…'); act('reward', reward); return; }
+
     var hall = nav.textDom('让子弹射');
     if (hall) {
       B.phase = 'hall'; hud('进入玩法…'); act('hall', hall);

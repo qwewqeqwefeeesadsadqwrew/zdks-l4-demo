@@ -223,6 +223,10 @@
     var lvBtn = nav.levelButtonDom(LV === 1 ? '第1关' : '第4关', ['btnUnlock', 'btnStart']);
     if (lvBtn && lvBtn.dom) { B.phase = 'level' + LV; hud('进入第' + LV + '关…'); act('lv-' + lvBtn.kind, lvBtn.dom); return; }
 
+    // level-up reward picker (three cards): pick the middle one so the demo keeps going
+    var reward = nav.rewardDom ? nav.rewardDom() : null;
+    if (reward) { B.phase = 'reward'; hud('选择升级奖励…'); act('reward', reward); return; }
+
     var hall = nav.textDom('让子弹射');
     if (hall) {
       B.phase = 'hall'; hud('进入玩法…'); act('hall', hall);

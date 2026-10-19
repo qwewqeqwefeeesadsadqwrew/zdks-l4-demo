@@ -162,6 +162,21 @@
     return domOfNode(target);
   };
 
+  // 升级奖励三选一：卡牌文字是图片，不能按文本找；按 card_dialog 的节点结构点中间那张
+  N.rewardDom = function () {
+    var dlg = findNode('card_dialog');
+    if (!dlg || !dlg.activeInHierarchy) return null;
+    var items = [];
+    (function walk(n, d) {
+      if (d > 4) return;
+      if (/^item(-\d+)?$/.test(n.name || '') && n.activeInHierarchy) items.push(n);
+      for (var j = 0; j < (n.children || []).length; j++) walk(n.children[j], d + 1);
+    })(dlg, 0);
+    if (!items.length) return null;
+    var pick = items[Math.floor(items.length / 2)];
+    return domOfNode(pick);
+  };
+
   N.levelButtonDom = function (levelText, kinds) {
     var label = findTextNode(levelText);
     if (!label) return null;
