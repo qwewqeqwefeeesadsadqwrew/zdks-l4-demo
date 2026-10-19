@@ -36,7 +36,9 @@
   function closeSignIn(m) {
     try {
       var ui = m.UI.GetUI(m.enum_ui.SignIn);
-      if (ui && ui.closeThis) ui.closeThis();
+      if (!ui) return;
+      if (ui.closeThis) { ui.closeThis(); return; }
+      if (ui.hideBack && ui.hideAni) { ui.hideBack(); ui.hideAni(); ui.isOpen = false; }
     } catch (e) {}
   }
 
@@ -44,9 +46,9 @@
     if (DEMO.stopped) return;
     var m = mcc();
     if (!m || !m.gameData || !m.UI) { setTimeout(loop, 300); return; }
+    closeSignIn(m);
 
     if (DEMO.state === 'boot') {
-      closeSignIn(m);
       var lvUI = null;
       try { lvUI = m.UI.GetUI(m.enum_ui.Level); } catch (e) {}
       if (lvUI && m.gameData.selectLevel === 0) {
