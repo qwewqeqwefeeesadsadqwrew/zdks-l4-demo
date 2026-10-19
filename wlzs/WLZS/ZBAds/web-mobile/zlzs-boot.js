@@ -15,6 +15,7 @@
     stopped: false,
     stop: function () { DEMO.stopped = true; },
     start: function () { DEMO.stopped = false; DEMO.state = 'boot'; DEMO.idx = 0; setTimeout(loop, 400); },
+    t0: 0,
     status: function () {
       return JSON.stringify({ state: DEMO.state, idx: DEMO.idx, level: DEMO.levels[DEMO.idx], log: DEMO.log.slice(-20) });
     }
@@ -79,7 +80,7 @@
       var lv = DEMO.levels[DEMO.idx];
       cleanShells();
       try { m.game.enterGengLevel(lv); } catch (e) { DEMO.log.push('enter-err ' + e); }
-      DEMO.log.push('enter ' + lv);
+      DEMO.log.push('enter ' + lv + ' @' + Math.round((Date.now() - (DEMO.t0 || (DEMO.t0 = Date.now()))) / 1000) + 's');
       DEMO.state = 'loading';
       setTimeout(loop, 1500);
       return;
@@ -123,15 +124,25 @@
       try { win = m.UI.GetUI(m.enum_ui.Win); } catch (e) {}
       if (!win) { setTimeout(loop, 500); return; }
       try { window.__zlzsAuto.stop(); } catch (e) {}
-      DEMO.log.push('win ' + DEMO.levels[DEMO.idx]);
+      DEMO.log.push('win ' + DEMO.levels[DEMO.idx] + ' @' + Math.round((Date.now() - (DEMO.t0 || Date.now())) / 1000) + 's');
       if (DEMO.idx >= DEMO.levels.length - 1) {
         DEMO.state = 'done';
         DEMO.log.push('all-done');
         return;
       }
       DEMO.idx++;
+      DEMO.state = 'next';
+      DEMO.nextAt = Date.now() + 1000 + Math.random() * 2000;
+      setTimeout(loop, 300);
+      return;
+    }
+
+    if (DEMO.state === 'next') {
+      if (Date.now() < DEMO.nextAt) { setTimeout(loop, 200); return; }
+      var win2 = null;
+      try { win2 = m.UI.GetUI(m.enum_ui.Win); } catch (e) {}
+      if (win2) { try { win2.nextBtnClick(); } catch (e) { DEMO.log.push('next-err ' + e); } }
       DEMO.state = 'loading';
-      try { win.nextBtnClick(); } catch (e) { DEMO.log.push('next-err ' + e); DEMO.state = 'enter'; }
       setTimeout(loop, 1600);
       return;
     }
