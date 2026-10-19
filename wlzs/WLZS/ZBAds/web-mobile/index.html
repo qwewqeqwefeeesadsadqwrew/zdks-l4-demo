@@ -9,6 +9,7 @@
     try {
       localStorage.setItem('WoLaiZhangShaoV1_unLockAllTime', String(Date.now()));
       localStorage.setItem('WoLaiZhangShaoV1_allUnLockHour', '999999');
+      localStorage.setItem('WoLaiZhangShaoV1_lastSignInTime', String(Date.now()));
     } catch (e) {}
     var base = location.href.replace(/WLZS\/ZBAds\/web-mobile\/.*$/, '');
     var t = setInterval(function () {
