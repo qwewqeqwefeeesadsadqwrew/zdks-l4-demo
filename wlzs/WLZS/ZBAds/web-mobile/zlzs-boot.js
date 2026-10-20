@@ -158,6 +158,23 @@
     return false;
   }
 
+  // 预载下一关 bundle：提前把 config/index 和资源拉进 Cocos 缓存，切关时不用现下载。
+  function preloadNext() {
+    try {
+      var m = mcc();
+      if (!m || DEMO.queue.length < 2) return;
+      var L = DEMO.queue[(DEMO.qi + 1) % DEMO.queue.length];
+      var name = 'bundleLv_' + L;
+      var url = m.res.getBundleJsonUrl() + name;
+      var ver = (m.gameConfig.BundleJson || {})[name];
+      cc.assetManager.loadBundle(url, { version: ver }, function (err, bundle) {
+        if (err) { DEMO.log.push('preload-err ' + name + ' ' + err); return; }
+        DEMO.log.push('preload ' + name);
+        try { bundle.preloadDir('', cc.Asset); } catch (e) { DEMO.log.push('preload-dir-err ' + e); }
+      });
+    } catch (e) { DEMO.log.push('preload-ex ' + e); }
+  }
+
   function loop() {
     if (DEMO.stopped) return;
     var m = mcc();
@@ -194,7 +211,11 @@
       if (pre && m.gameData.selectLevel === DEMO.queue[DEMO.qi]) {
         DEMO.log.push('loaded ' + DEMO.queue[DEMO.qi]);
         DEMO.state = 'play';
+        // 计时：游戏只在玩家第一次触摸关卡节点时才开始倒计时；自动玩不发那个事件，
+        // 这里直接调游戏自己的 downStartTime()，让顶部时间正常从 04:00 开始走。
+        try { if (pre.downStartTime) pre.downStartTime(); } catch (e) { DEMO.log.push('timer-err ' + e); }
         try { window.__zlzsAuto.start(); } catch (e) { DEMO.log.push('auto-err ' + e); }
+        try { if (DEMO.preloadFor !== DEMO.queue[DEMO.qi]) { DEMO.preloadFor = DEMO.queue[DEMO.qi]; setTimeout(preloadNext, 1200 + Math.random() * 1200); } } catch (e) {}
       }
       setTimeout(loop, 500);
       return;
@@ -238,7 +259,7 @@
         DEMO.log.push('round ' + DEMO.round + ' order ' + DEMO.queue.join(','));
       }
       DEMO.state = 'next';
-      DEMO.nextAt = Date.now() + 1000 + Math.random() * 2000;
+      DEMO.nextAt = Date.now() + 150 + Math.random() * 350;
       setTimeout(loop, 300);
       return;
     }
