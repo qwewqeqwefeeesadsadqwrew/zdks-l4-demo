@@ -15,17 +15,25 @@
     log: [],
     err: null,
     stats: { actions: 0, drags: 0, taps: 0, swipes: 0, holds: 0, rubs: 0, skips: 0 },
+    gestures: [],
     stop: function () { A.running = false; A._why = 'stopped'; },
     status: function () {
       var p = preComp();
       return JSON.stringify({
         running: A.running, why: A._why || null, stats: A.stats,
         mini: p ? p.currentMiniLv : null, step: p ? p.currentStepNum : null,
-        fin: p ? p.currentStepFinishNum : null, log: A.log.slice(-25), err: A.err
+        fin: p ? p.currentStepFinishNum : null, lastGesture: A.lastGesture || null,
+        gestures: A.gestures.slice(-8),
+        log: A.log.slice(-25), err: A.err
       });
     }
   };
   window.__zlzsAuto = A;
+  function recordGesture(g) {
+    A.lastGesture = g;
+    A.gestures.push(g);
+    if (A.gestures.length > 12) A.gestures.shift();
+  }
 
   function shell() { return CC().find('Canvas/StalkPre_1'); }
   function preComp() { var s = shell(); return s ? s.getComponent('StalkPre_1') : null; }
@@ -82,6 +90,13 @@
     })(p.node);
     return list;
   }
+  function rand(a, b) { return a + Math.random() * (b - a); }
+  function randPointInRect(r, inset) {
+    if (!r) return null;
+    var ix = Math.max(2, r.w * inset), iy = Math.max(2, r.h * inset);
+    var x0 = r.x + ix, x1 = r.x + r.w - ix, y0 = r.y + iy, y1 = r.y + r.h - iy;
+    return { x: rand(Math.min(x0, x1), Math.max(x0, x1)), y: rand(Math.min(y0, y1), Math.max(y0, y1)) };
+  }
   function bestWorld(node) {
     var r = rectOf(node);
     if (!r) return worldOf(node);
@@ -92,10 +107,13 @@
       [cx, r.y + r.h * 0.15], [cx, r.y + r.h * 0.85],
       [r.x + r.w * 0.15, cy], [r.x + r.w * 0.85, cy],
       [r.x + r.w * 0.2, r.y + r.h * 0.2], [r.x + r.w * 0.8, r.y + r.h * 0.2],
-      [r.x + r.w * 0.2, r.y + r.h * 0.8], [r.x + r.w * 0.8, r.y + r.h * 0.8],
-      [cx, r.y + 10], [cx, r.y + r.h - 10]
+      [r.x + r.w * 0.2, r.y + r.h * 0.8], [r.x + r.w * 0.8, r.y + r.h * 0.8]
     ];
-    // 每次随机打乱候选点顺序（避免每次都点同一位置）
+    // 再撒 24 个连续随机点：同一道具每次按下的位置都不同
+    for (var ri = 0; ri < 24; ri++) {
+      var rp = randPointInRect(r, 0.12);
+      if (rp) cands.push([rp.x, rp.y]);
+    }
     for (var ci = cands.length - 1; ci > 0; ci--) {
       var cj = Math.floor(Math.random() * (ci + 1));
       var ct = cands[ci]; cands[ci] = cands[cj]; cands[cj] = ct;
@@ -127,23 +145,44 @@
     node.emit(type, touchEvt(x, y, dx, dy));
   }
 
-  // 拖拽：源节点 → 目标节点。拟人：按下停 80ms，500ms 平滑移动（缓入缓出）
-  function drag(node, target, steps) {
-    var sp = bestWorld(node), tp = worldOf(target);
+  // 拟人缓动：每次随机混合 smoothstep 与幂函数，速度曲线不重复
+  function makeEase() {
+    var mix = rand(0.45, 0.85), pow = rand(1.35, 2.6);
+    return function (t) {
+      var s = t * t * (3 - 2 * t);
+      return mix * s + (1 - mix) * Math.pow(t, pow);
+    };
+  }
+
+  // 拖拽：源节点 → 目标节点。起点/落点/时长/按压/路径弧度/抖动全随机
+  function drag(node, target) {
+    var sp = bestWorld(node);
+    var tr = rectOf(target);
+    var tp = (tr && randPointInRect(tr, 0.24)) || worldOf(target);
     emit(node, CC().Node.EventType.TOUCH_START, sp.x, sp.y, 0, 0);
     A.stats.drags++;
-    var DUR = 350 + Math.random() * 400, pressMs = 50 + Math.random() * 130;
+    var dur = rand(300, 850), pressMs = rand(40, 180);
+    var vx = tp.x - sp.x, vy = tp.y - sp.y;
+    var dist = Math.sqrt(vx * vx + vy * vy) || 1;
+    var nx = -vy / dist, ny = vx / dist;
+    var curve = rand(-0.12, 0.12) * Math.min(dist, 260); // 侧向弧度，最多 ±31px
+    var jitter = rand(0.4, 2.2), jfreq = rand(2, 4.5), jphase = rand(0, 6.28);
+    var ease = makeEase();
     var t0 = Date.now(), lx = sp.x, ly = sp.y;
+    recordGesture({ type: 'drag', node: node.name, target: target.name, from: sp, to: tp, dur: Math.round(dur), press: Math.round(pressMs), curve: Math.round(curve) });
     function moveStep() {
       try {
-        var t = Math.min(1, (Date.now() - t0) / DUR);
-        var e = t * t * (3 - 2 * t);
-        var x = sp.x + (tp.x - sp.x) * e;
-        var y = sp.y + (tp.y - sp.y) * e;
+        var t = Math.min(1, (Date.now() - t0) / dur);
+        var e = ease(t), arc = Math.sin(Math.PI * t);
+        var x = sp.x + vx * e + nx * curve * arc + nx * jitter * Math.sin(Math.PI * t * jfreq + jphase) * arc;
+        var y = sp.y + vy * e + ny * curve * arc + ny * jitter * Math.sin(Math.PI * t * jfreq + jphase) * arc;
         emit(node, CC().Node.EventType.TOUCH_MOVE, x, y, x - lx, y - ly);
         lx = x; ly = y;
-        if (t < 1) { setTimeout(moveStep, 16); return; }
-        emit(node, CC().Node.EventType.TOUCH_END, tp.x, tp.y, 0, 0);
+        if (t < 1) { setTimeout(moveStep, rand(12, 22)); return; }
+        emit(node, CC().Node.EventType.TOUCH_MOVE, tp.x, tp.y, tp.x - lx, tp.y - ly);
+        setTimeout(function () {
+          try { emit(node, CC().Node.EventType.TOUCH_END, tp.x, tp.y, 0, 0); } catch (err) {}
+        }, rand(0, 120));
       } catch (err) {}
     }
     setTimeout(moveStep, pressMs);
@@ -151,31 +190,46 @@
 
   function tapNode(node) {
     var p = bestWorld(node);
+    var press = rand(50, 180);
+    var jx = rand(-2.2, 2.2), jy = rand(-2.2, 2.2);
     emit(node, CC().Node.EventType.TOUCH_START, p.x, p.y, 0, 0);
     A.stats.taps++;
+    recordGesture({ type: 'tap', node: node.name, at: p, press: Math.round(press) });
     setTimeout(function () {
-      try { emit(node, CC().Node.EventType.TOUCH_END, p.x, p.y, 0, 0); } catch (err) {}
-    }, 60 + Math.random() * 100);
+      try {
+        if (Math.random() < 0.7) emit(node, CC().Node.EventType.TOUCH_MOVE, p.x + jx, p.y + jy, jx, jy);
+      } catch (err) {}
+    }, Math.max(10, press * 0.4));
+    setTimeout(function () {
+      try { emit(node, CC().Node.EventType.TOUCH_END, p.x + jx, p.y + jy, 0, 0); } catch (err) {}
+    }, press);
   }
 
-  // 方向滑动：dx/dy 为设计坐标方向（y 向上），dist 为配置的 Value（设计像素）。拟人：420ms 平滑
+  // 方向滑动：方向/距离加随机抖动；起点、时长、按压随机
   function swipe(node, dx, dy, dist) {
     var p = bestWorld(node);
-    var len = Math.max(20, Number(dist) || 30) + 20;
+    var base = Math.max(20, Number(dist) || 30);
+    var len = base + rand(8, 60);
+    var ang = rand(-0.06, 0.06); // ±3.4°
+    var ca = Math.cos(ang), sa = Math.sin(ang);
+    var ux = dx * ca - dy * sa, uy = dx * sa + dy * ca;
+    var dur = rand(260, 700), pressMs = rand(30, 150);
+    var curve = rand(-0.05, 0.05) * len;
+    var ease = makeEase();
     emit(node, CC().Node.EventType.TOUCH_START, p.x, p.y, 0, 0);
     A.stats.swipes++;
-    var DUR = 300 + Math.random() * 300, pressMs = 40 + Math.random() * 100;
+    recordGesture({ type: 'swipe', node: node.name, dir: [dx, dy], len: Math.round(len), dur: Math.round(dur), press: Math.round(pressMs) });
     var t0 = Date.now(), lx = p.x, ly = p.y;
     function moveStep() {
       try {
-        var t = Math.min(1, (Date.now() - t0) / DUR);
-        var e = t * t * (3 - 2 * t);
-        var x = p.x + dx * len * e;
-        var y = p.y + dy * len * e;
+        var t = Math.min(1, (Date.now() - t0) / dur);
+        var e = ease(t), arc = Math.sin(Math.PI * t);
+        var x = p.x + ux * len * e - uy * curve * arc;
+        var y = p.y + uy * len * e + ux * curve * arc;
         emit(node, CC().Node.EventType.TOUCH_MOVE, x, y, x - lx, y - ly);
         lx = x; ly = y;
-        if (t < 1) { setTimeout(moveStep, 16); return; }
-        emit(node, CC().Node.EventType.TOUCH_END, p.x + dx * len, p.y + dy * len, 0, 0);
+        if (t < 1) { setTimeout(moveStep, rand(12, 22)); return; }
+        emit(node, CC().Node.EventType.TOUCH_END, p.x + ux * len, p.y + uy * len, 0, 0);
       } catch (err) {}
     }
     setTimeout(moveStep, pressMs);
@@ -183,26 +237,40 @@
 
   function hold(node, seconds) {
     var p = bestWorld(node);
+    var ms = Math.max(200, (Number(seconds) || 2) * 1000 + rand(100, 600));
     emit(node, CC().Node.EventType.TOUCH_START, p.x, p.y, 0, 0);
-    setTimeout(function () {
-      emit(node, CC().Node.EventType.TOUCH_END, p.x, p.y, 0, 0);
-    }, Math.max(200, (Number(seconds) || 2) * 1000 + 150 + Math.random() * 400));
     A.stats.holds++;
+    recordGesture({ type: 'hold', node: node.name, at: p, dur: Math.round(ms) });
+    var t0 = Date.now();
+    (function jitterLoop() {
+      if (Date.now() - t0 > ms) {
+        try { emit(node, CC().Node.EventType.TOUCH_END, p.x, p.y, 0, 0); } catch (err) {}
+        return;
+      }
+      try {
+        var jx = rand(-1.4, 1.4), jy = rand(-1.4, 1.4);
+        emit(node, CC().Node.EventType.TOUCH_MOVE, p.x + jx, p.y + jy, jx, jy);
+      } catch (err) {}
+      setTimeout(jitterLoop, rand(120, 260));
+    })();
   }
 
-  // TouchCuo：按住来回划动，累计时间达到 Value 秒
+  // TouchCuo：按住来回划动，累计时间达到 Value 秒；方向/幅度/频率随机
   function rub(node, seconds) {
     var p = bestWorld(node);
+    var amp = rand(14, 42), vertical = Math.random() < 0.5, period = rand(30, 60);
+    var until = Date.now() + Math.max(800, (Number(seconds) || 1) * 1000 + rand(400, 900));
     emit(node, CC().Node.EventType.TOUCH_START, p.x, p.y, 0, 0);
-    var until = Date.now() + Math.max(800, (Number(seconds) || 1) * 1000 + 400 + Math.random() * 500);
+    A.stats.rubs++;
+    recordGesture({ type: 'cuo', node: node.name, amp: Math.round(amp), vertical: vertical, period: Math.round(period) });
     var dir = 1;
     (function loop() {
       if (Date.now() > until) { emit(node, CC().Node.EventType.TOUCH_END, p.x, p.y, 0, 0); return; }
       dir = -dir;
-      emit(node, CC().Node.EventType.TOUCH_MOVE, p.x + dir * 24, p.y, dir * 24, 0);
-      setTimeout(loop, 40);
+      var dx = vertical ? 0 : dir * amp, dy = vertical ? dir * amp : 0;
+      emit(node, CC().Node.EventType.TOUCH_MOVE, p.x + dx, p.y + dy, dx, dy);
+      setTimeout(loop, period);
     })();
-    A.stats.rubs++;
   }
 
   // 纯提示条目（Key 且无 Step/Tween）不推进任何状态：查询下一步时临时把它们从场景配置里摘掉，
@@ -270,17 +338,41 @@
     var x1 = rub.parent.convertToWorldSpaceAR(CC().v2(rub.width / 2, rub.height / 2));
     var left = Math.min(x0.x, x1.x), right = Math.max(x0.x, x1.x);
     var bottom = Math.min(x0.y, x1.y), top = Math.max(x0.y, x1.y);
-    var inset = 22, gap = 42;
-    var path = [], row = 0;
-    for (var y = bottom + inset; y <= top - inset + 0.1; y += gap) {
-      if (row % 2 === 0) { for (var x = left + inset; x <= right - inset + 0.1; x += gap) path.push([x, y]); }
-      else { for (var x2 = right - inset; x2 >= left + inset - 0.1; x2 -= gap) path.push([x2, y]); }
-      row++;
+    var inset = rand(18, 28), gap = rand(36, 52);
+    var path = [];
+    var vertical = Math.random() < 0.5;
+    var flipX = Math.random() < 0.5, flipY = Math.random() < 0.5;
+    function pushPoint(x, y) {
+      x = Math.min(right - 2, Math.max(left + 2, x + rand(-5, 5)));
+      y = Math.min(top - 2, Math.max(bottom + 2, y + rand(-5, 5)));
+      path.push([x, y]);
     }
-    // 起点：先到路径第一个点
-    if (path.length) path.unshift([left + inset, bottom + inset]);
+    if (!vertical) {
+      var ys = [];
+      for (var yy = bottom + inset; yy <= top - inset + 0.1; yy += gap) ys.push(yy);
+      if (flipY) ys.reverse();
+      for (var yi = 0; yi < ys.length; yi++) {
+        var xs = [];
+        for (var xx = left + inset; xx <= right - inset + 0.1; xx += gap) xs.push(xx);
+        if ((yi % 2 === 0) !== flipX) xs.reverse();
+        for (var xi = 0; xi < xs.length; xi++) pushPoint(xs[xi], ys[yi]);
+      }
+    } else {
+      var xs2 = [];
+      for (var xx2 = left + inset; xx2 <= right - inset + 0.1; xx2 += gap) xs2.push(xx2);
+      if (flipX) xs2.reverse();
+      for (var xi2 = 0; xi2 < xs2.length; xi2++) {
+        var ys2 = [];
+        for (var yy2 = bottom + inset; yy2 <= top - inset + 0.1; yy2 += gap) ys2.push(yy2);
+        if ((xi2 % 2 === 0) !== flipY) ys2.reverse();
+        for (var yi2 = 0; yi2 < ys2.length; yi2++) pushPoint(xs2[xi2], ys2[yi2]);
+      }
+    }
+    var first = path[0] || [left + inset, bottom + inset];
+    path.unshift([first[0], first[1]]);
     var curC = { x: cp.x, y: cp.y }, curG = { x: sp.x, y: sp.y };
-    var stepMs = 22 + Math.random() * 18;
+    var stepMs = rand(16, 34);
+    recordGesture({ type: 'rub', node: node.name, orientation: vertical ? 'vertical' : 'horizontal', points: path.length, gap: Math.round(gap), stepMs: Math.round(stepMs) });
     A._gestureUntil = Date.now() + path.length * stepMs * 2 + 1200;
     emit(node, CC().Node.EventType.TOUCH_START, sp.x, sp.y, 0, 0);
     A.stats.rubs++;
@@ -319,12 +411,13 @@
         A.stats.skips++; A.log.push('NO_VALUE ' + tip.node); return false;
       }
       var names = typeof tip.Value === 'string' ? [tip.Value] : tip.Value;
-      var target = null;
+      var targets = [];
       for (var i = 0; i < names.length; i++) {
         var cand = findAny(names[i]);
-        if (cand && cand.activeInHierarchy) { target = cand; break; }
+        if (cand && cand.activeInHierarchy) targets.push(cand);
       }
-      if (!target) { A.stats.skips++; A.log.push('NO_TARGET ' + tip.node + ' -> ' + JSON.stringify(tip.Value)); return false; }
+      if (!targets.length) { A.stats.skips++; A.log.push('NO_TARGET ' + tip.node + ' -> ' + JSON.stringify(tip.Value)); return false; }
+      var target = targets[Math.floor(Math.random() * targets.length)];
       drag(node, target);
       return true;
     }
