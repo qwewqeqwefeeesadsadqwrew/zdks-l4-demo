@@ -132,9 +132,6 @@
         } else if(phase===1&&Date.now()-t0>1500){
           var start=findByText(root,'开始');
           if(start&&fireUp(start)){phase=2;t0=Date.now();}
-        } else if(phase===2&&Date.now()-t0>15000){
-          phase=3;
-          try{ YT.logic.onEnterMoreGame(103,1); }catch(e){}
         }
       }catch(e){}
     },700);
