@@ -23,6 +23,7 @@
   window.__blockPref = Math.random() < 0.5 ? 0 : 1;
   window.__switchedToLv2 = false;
   window.__mergedLv2 = false; window.__mergeOK = false; window.__mergeErr = null;
+  window.__boss3Nerfed = false;
   // 前期无敌：每 50ms 把血量拉满；到最后一个 Boss 才解开（之后让 Boss 打死）
   window.__godOff = false;
   if(window.__godTimer) clearInterval(window.__godTimer);
@@ -55,6 +56,12 @@
       // 终局 Boss：血量 >50 万的 Boss
       let boss3=null;
       for(const e of st.enemies){ if(!e.isDead&&e.isBoss&&e.hp>500000){boss3=e;break;} }
+      // 最终 Boss（888888 血）血量改小到 28888，不然无敌状态下要磨十几分钟
+      if(boss3&&!window.__boss3Nerfed){
+        window.__boss3Nerfed=true;
+        boss3.hp=28888;
+        window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),'nerf-boss3',+px.toFixed(2),st.killEnemyCount,st.players.length,pl.hp]);
+      }
       // 最后一个 Boss 露脸时解开无敌（之后会被它打死，演示"打到最后一关才牺牲"）
       if(!window.__godOff&&st.config&&st.enemies.some(function(e){return !e.isDead&&e.isBoss;})){
         const remain=(st.config.boss_count||0)-st.killedBossCount;
