@@ -1,5 +1,5 @@
-// 演示站通用 Service Worker：首次加载后全量缓存，二次打开秒开
-const CACHE = 'zdks-v1';
+// 演示站 Service Worker：首次加载后全量缓存，二次打开秒开
+const CACHE = 'zdks-l4-demo-v1';
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', e => {
