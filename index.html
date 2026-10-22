@@ -3,9 +3,7 @@
 <head>
   <meta charset="utf-8">
 
-  <title>噩梦模拟器</title>
-  <!-- 并发限流：雷电自带浏览器的 HTTP/2 并发大文件会卡死，先排队再加载 -->
-  <script src="zdks-netq.js?v=1"></script>
+  <title>僵尸亮了</title>
 
   <!--http://www.html5rocks.com/en/mobile/mobifying/-->
   <meta name="viewport"
@@ -29,23 +27,13 @@
   <meta name="360-fullscreen" content="true"/>
 
   <!--fix fireball/issues/3568 -->
-  <!--<meta name="browsermode" content="application.9e0b7.js">-->
+  <!--<meta name="browsermode" content="application.81011.js">-->
   <meta name="x5-page-mode" content="app">
 
   <!--<link rel="apple-touch-icon" href=".png" />-->
   <!--<link rel="apple-touch-icon-precomposed" href=".png" />-->
 
   <link rel="stylesheet" type="text/css" href="style.f76d1.css"/>
-
-  <!-- 演示站固定 1x 渲染：手机高 DPR 下避免 4 倍像素拖慢帧率，保证自动演示不因掉帧输掉 -->
-  <script>
-    try {
-      Object.defineProperty(window, 'devicePixelRatio', {
-        configurable: true,
-        get: function () { return 1; }
-      });
-    } catch (e) { }
-  </script>
 
 </head>
 <body>
@@ -65,32 +53,32 @@
 <script src="src/system.bundle.543e6.js" charset="utf-8"> </script>
 
 <!-- Import map -->
-<script src="src/import-map.0a469.json" type="systemjs-importmap" charset="utf-8"> </script>
+<script src="src/import-map.7e54d.json" type="systemjs-importmap" charset="utf-8"> </script>
 
 <script>
-    System.import('./index.42e24.js').catch(function(err) { console.error(err); })
+    System.import('./index.2dd22.js').catch(function(err) { console.error(err); })
 </script>
 
 
 <script type="text/javascript" src="console-ban.min.js"></script>
   <script>
-    // demo mirror: the game's cache-refresh redirect is removed on purpose;
-    // it appended ?t= on every load and looped forever when the URL already had ?level=1.
-    // Script versions below are bumped by hand instead of redirecting the page.
+    function getQueryString(name) {
+      let reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)");
+      if (!window.location || !window.location.search) return null;
+      let r = window.location.search.substr(1).match(reg);
+      if (r != null) return decodeURIComponent(r[2]);
+      return null;
+    }
+    
     window["__GM"] = 1;
-    window["__VERSION"] = "lts777";
+    window["__VERSION"] = "jiangshiliangle";
     if (window["ConsoleBan"]) {
       window["ConsoleBan"].init({
         redirect: '/404'
       });
     }
   </script>
-
-  <!-- 自动演示：页面内导航 + 第4关自动玩（不改游戏文件/内存/判定） -->
-  <script src="zdks-nav.js?v=6" charset="utf-8"></script>
-  <script src="zdks-strategy.js?v=6" charset="utf-8"></script>
-  <script src="l1-strategy.js?v=4" charset="utf-8"></script>
-  <script src="zdks-boot.js?v=7" charset="utf-8"></script>
+<script src="dbqb-autoplay.js?v=12"></script>
 </body>
         
 </html>
