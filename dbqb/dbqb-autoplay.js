@@ -21,6 +21,7 @@
   // 本局随机偏好：先打哪一侧的桶、红蓝门往哪边推（每局重新随机，保证操作不重复）
   window.__lanePref = Math.random() < 0.5 ? -1 : 1;
   window.__blockPref = Math.random() < 0.5 ? 0 : 1;
+  window.__switchedToLv2 = false;
   let lastPlayers=0; const seenHp={}; let cur=null;
   const SKIP=[];
   const ROLE=[101,102,103,104,105,106,107,108,109,110,706];
@@ -42,6 +43,16 @@
       // 终局 Boss：血量 >50 万的 Boss
       let boss3=null;
       for(const e of st.enemies){ if(!e.isDead&&e.isBoss&&e.hp>500000){boss3=e;break;} }
+      // 第一关最终 Boss 一露面就切第二关，把两关接成一局（第一关那个 888888 血的 Boss 不打）
+      if(boss3&&!window.__switchedToLv2&&st.config&&st.config.id===1){
+        window.__switchedToLv2=true;
+        window.__bigStart=null; window.__bigDur=0;
+        window.__lanePref=Math.random()<0.5?-1:1;
+        window.__blockPref=Math.random()<0.5?0:1;
+        window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),'switch-lv2',+px.toFixed(2),st.killEnemyCount,st.players.length,pl.hp]);
+        st.nextLevel();
+        return;
+      }
       const pl0=st.players.find(function(p){return !p.isDead;});
       const bossClose=!!(boss3&&pl0&&Math.abs(boss3.node.worldPosition.z-pl0.node.worldPosition.z)<9);
       const danger=[];
