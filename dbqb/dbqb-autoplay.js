@@ -22,6 +22,17 @@
   window.__lanePref = Math.random() < 0.5 ? -1 : 1;
   window.__blockPref = Math.random() < 0.5 ? 0 : 1;
   window.__switchedToLv2 = false;
+  // 前期无敌：每 50ms 把血量拉满；到最后一个 Boss 才解开（之后让 Boss 打死）
+  window.__godOff = false;
+  if(window.__godTimer) clearInterval(window.__godTimer);
+  window.__godTimer = setInterval(function(){
+    if(window.__godOff) return;
+    try{
+      const s2=YT.logic.state;
+      if(!s2||!s2.players) return;
+      for(const p of s2.players){ if(p&&!p.isDead&&p.hp<10) p.hp=10; }
+    }catch(e){}
+  },50);
   let lastPlayers=0; const seenHp={}; let cur=null;
   const SKIP=[];
   const ROLE=[101,102,103,104,105,106,107,108,109,110,706];
@@ -43,6 +54,11 @@
       // 终局 Boss：血量 >50 万的 Boss
       let boss3=null;
       for(const e of st.enemies){ if(!e.isDead&&e.isBoss&&e.hp>500000){boss3=e;break;} }
+      // 最后一个 Boss 露脸时解开无敌（之后会被它打死，演示"打到最后一关才牺牲"）
+      if(!window.__godOff&&st.config&&st.config.id===2&&st.enemies.some(function(e){return !e.isDead&&e.isBoss;})){
+        const remain=(st.config.boss_count||0)-st.killedBossCount;
+        if(remain<=1){ window.__godOff=true; window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),'god-off',+px.toFixed(2),st.killEnemyCount,st.players.length,pl.hp]); }
+      }
       // 第一关最终 Boss 一露面就切第二关，把两关接成一局（第一关那个 888888 血的 Boss 不打）
       if(boss3&&!window.__switchedToLv2&&st.config&&st.config.id===1){
         window.__switchedToLv2=true;
