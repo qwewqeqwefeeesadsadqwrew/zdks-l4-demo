@@ -46,6 +46,22 @@
         const dz=b.node.worldPosition.z-pz;
         if(dz>-8&&dz<2) danger.push({x:b.node.worldPosition.x,dz:dz,hp:b.hp,rid:b.rewardId});
       }
+      // 最后一个大桶（2000 血）：打 1.5 秒就躲开
+      let bigBucket=null;
+      for(const b of st.buckets){ if(alive(b)&&b.hp>=1000){bigBucket=b;break;} }
+      if(bigBucket){
+        const bdz=bigBucket.node.worldPosition.z-pz;
+        if(bdz>-26&&bdz<1.5){
+          if(!window.__bigStart){ window.__bigStart=Date.now(); window.__bigDur=1.0+Math.random()*1.5; }
+          if((Date.now()-window.__bigStart)/1000>window.__bigDur){
+            const bx=bigBucket.node.worldPosition.x;
+            const escapeX=bx>=0?-3.5:3.5;
+            st.playerMove(Math.max(-0.65,Math.min(0.65,escapeX-px)));
+            window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),'dodge-big',+px.toFixed(2),st.killEnemyCount,st.players.length,pl.hp]);
+            return;
+          }
+        }
+      }
       // 目标承诺
       let tb=null;
       if(cur && alive(cur)){
@@ -87,15 +103,15 @@
       for(const b of st.buckets){
         if(!alive(b)||b.hp<=0) continue;
         const dz=b.node.worldPosition.z-pz;
-        if(dz>-8&&dz<0) dangerBuckets.push({x:b.node.worldPosition.x});
+        if(dz>-8&&dz<0) dangerBuckets.push({x:b.node.worldPosition.x,dz:dz});
       }
-      if(nearBoss){
-        tx=px+(nearBoss.node.worldPosition.x>px?-0.6:0.6); mode='dodge-boss';
-      } else if(dangerBuckets.some(function(d){return Math.abs(d.x-px)<2.0;})){
-        const left=dangerBuckets.filter(function(d){return d.x<0;}).length;
-        const right=dangerBuckets.filter(function(d){return d.x>0;}).length;
-        const safeX=(left===0&&right===0)?((rnd()<0.5?-1:1)*3.5):(left===0?-3.5:(right===0?3.5:0));
-        tx=px+Math.max(-0.55,Math.min(0.55,safeX-px)); mode='dodge-bucket';
+      if(dangerBuckets.some(function(d){return Math.abs(d.x-px)<2.0;})){
+        let nearest=null;
+        for(const d of dangerBuckets){ if(!nearest||d.dz>nearest.dz) nearest=d; }
+        const safeX=(nearest&&nearest.x>=0)?-3.5:3.5;
+        tx=px+Math.max(-0.65,Math.min(0.65,safeX-px)); mode='dodge-bucket';
+      } else if(nearBoss){
+        tx=px+(nearBoss.node.worldPosition.x>px?-0.8:0.8); mode='dodge-boss';
       } else if(tb){
         tx=tb.node.worldPosition.x+Math.sin(Date.now()/280+seed%1000)*0.28; mode='hit:'+tb.rewardId+':'+tb.hp;
       } else if(threat){
