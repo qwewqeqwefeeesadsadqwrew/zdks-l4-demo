@@ -1,12 +1,20 @@
-// 夺宝奇兵 · 自动玩（演示版）
-// 进关：FairyGUI 节点 fireClick；策略：v15 + 保命 + 随机化 + Boss 终局
 (function(){
   'use strict';
   function fgRoot(){var fg=System.get('chunks:///_virtual/fairygui.mjs');return fg&&fg.GRoot&&fg.GRoot.inst;}
   function findByText(root,txt,name){var hit=null;function walk(n){if(!n||hit)return;try{if(n.text&&String(n.text).trim()===txt&&(!name||n.name===name))hit=n;}catch(e){}var k=n._children||[];for(var i=0;i<k.length;i++)walk(k[i]);}walk(root);return hit;}
   function fireUp(node){for(var p=node;p;p=p.parent){if(typeof p.fireClick==='function'){p.fireClick();return true;}}return false;}
   function startStrategy(YT){
-    var pref=(function(){var p=['role','atk','spd'];return p[Math.floor(Math.random()*3)];})();
+
+    var seed=((Date.now()%2147483647)^((window.__roundNo||1)*2654435761))>>>0;
+    var rng=(function(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};})(seed);
+    var pref=['role','atk','spd'][Math.floor(rng()*3)];
+    var jitter=8+rng()*24;
+    var dodgeBase=0.5+rng()*1.0;
+    var centerBias=0.2+rng()*0.8;
+    var sig=[seed,pref,jitter.toFixed(4),dodgeBase.toFixed(4),centerBias.toFixed(4)].join('|');
+    if(window.__lastSig===sig&&window.__roundInfo){ seed=(seed+7919)>>>0; window.__roundInfo={round:window.__roundNo,seed:seed,pref:pref,jitter:+jitter.toFixed(3),dodgeBase:+dodgeBase.toFixed(3),centerBias:+centerBias.toFixed(3),reseeded:true}; }
+    window.__lastSig=sig;
+    if(!window.__roundInfo||window.__roundInfo.round!==window.__roundNo) window.__roundInfo={round:window.__roundNo,seed:seed,pref:pref,jitter:+jitter.toFixed(3),dodgeBase:+dodgeBase.toFixed(3),centerBias:+centerBias.toFixed(3)};
     if(window.__dbqb) clearInterval(window.__dbqb);
   window.__dbqbLog=[]; window.__dbqbErr=null; window.__dbqbStart=Date.now(); window.__dbqbDrops=[]; window.__dbqbKilled=[];
   let lastPlayers=0; const seenHp={}; let cur=null;
@@ -18,7 +26,7 @@
     501:40,502:40,503:40,601:40,602:40,603:40};
   function val(r){ return VAL[r]!==undefined?VAL[r]:50; }
   function alive(b){ return b && !b.isDead && b.node && b.node.active; }
-  window.__dbqb=setInterval(function(){
+  window.__stratTimer=setInterval(function(){
     try{
       const st=YT.logic.state;
       const rnd=Math.random;
@@ -52,7 +60,7 @@
         for(const p of st.players){ if(!p.isDead&&p.hp<3){ p.hp=10; if(p.updateHud)p.updateHud(); } }
       }
 
-      if(!st||st.gameOver){clearInterval(window.__dbqb);window.__dbqb=null;return;}
+      if(!st||st.gameOver){clearInterval(window.__stratTimer);window.__stratTimer=null;return;}
       const pl=st.players.find(function(p){return !p.isDead;}); if(!pl) return;
       if(st.players.length<lastPlayers) window.__dbqbDrops.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),lastPlayers,st.players.length]);
       lastPlayers=st.players.length;
@@ -84,7 +92,7 @@
           if(dz<-26||dz>-3.5) continue;
           // 太近又太厚，打不完
           if(dz>-6 && b.hp>90) continue;
-          const sc=val(b.rewardId)*1.0 - Math.abs(dz)*0.5 - b.hp*0.03 + prefBonus(b.rewardId) + (rnd()-0.5)*18;
+          const sc=val(b.rewardId)*1.0 - Math.abs(dz)*0.5 - b.hp*0.03 + prefBonus(b.rewardId) + (rnd()-0.5)*jitter;
           if(sc>best){best=sc;tb=b;}
         }
       }
@@ -128,11 +136,37 @@
       st.playerMove(step);
       window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),mode,+(px).toFixed(2),st.killEnemyCount,st.players.length,pl.hp]);
       if(window.__dbqbLog.length>3000) window.__dbqbLog.shift();
-    }catch(e){window.__dbqbErr=String(e); clearInterval(window.__dbqb);}
+    }catch(e){window.__dbqbErr=String(e); clearInterval(window.__stratTimer); window.__stratTimer=null;}
   },60);
-  return 'v15 started';
-
   }
-  function boot(){var phase=0,t0=Date.now();var timer=setInterval(function(){try{var m=System.get('chunks:///_virtual/YT.ts');var YT=m&&m.YT;if(!YT||!YT.logic)return;var st=YT.logic.state;if(st&&st.players&&st.players.length>0){clearInterval(timer);startStrategy(YT);return;}var root=fgRoot();if(!root)return;if(phase===0&&YT.logic._updatable){var icon=findByText(root,'夺宝奇兵','slot_7');if(icon&&fireUp(icon)){phase=1;t0=Date.now();}}else if(phase===1&&Date.now()-t0>1500){var start=findByText(root,'开始');if(start&&fireUp(start)){phase=2;t0=Date.now();}}}catch(e){}},700);}
+  function boot(){
+    var phase=0, tClick=0;
+    setInterval(function(){
+      try{
+        var m=System.get('chunks:///_virtual/YT.ts');
+        var YT=m&&m.YT; if(!YT||!YT.logic) return;
+        var st=YT.logic.state;
+        if(st&&st.players&&st.players.length>0){
+          if(!window.__stratTimer){
+            window.__roundNo=(window.__roundNo||0)+1;
+            window.__roundStart=Date.now();
+            startStrategy(YT);
+          }
+          return;
+        }
+        if(st&&st.gameOver){
+          if(window.__stratTimer){clearInterval(window.__stratTimer);window.__stratTimer=null;}
+          var root=fgRoot();
+          if(root){var btn=findByText(root,'再次挑战');if(btn)fireUp(btn);}
+          return;
+        }
+        if(YT.logic._updatable&&!window.__stratTimer){
+          var r2=fgRoot(); if(!r2) return;
+          if(phase===0){var icon=findByText(r2,'夺宝奇兵','slot_7');if(icon&&fireUp(icon)){phase=1;tClick=Date.now();}}
+          else if(phase===1&&Date.now()-tClick>1500){var start=findByText(r2,'开始');if(start&&fireUp(start)){phase=2;tClick=Date.now();}}
+        }
+      }catch(e){}
+    },700);
+  }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
