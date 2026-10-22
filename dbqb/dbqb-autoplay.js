@@ -103,8 +103,11 @@
           // 两个桶都在射程内时，优先本局偏好那一侧（每局随机，操作不重复）
           const top=cands.slice(0,2);
           let pick=null;
-          for(const c of top){
-            if(Math.sign(c.b.node.worldPosition.x)===window.__lanePref){ pick=c; break; }
+          // 只有两个桶距离接近时才用本局偏好；差太多还是打近的，避免来回横跨送死
+          if(top.length>1&&top[0].d<15&&Math.abs(top[0].d-top[1].d)<5){
+            for(const c of top){
+              if(Math.sign(c.b.node.worldPosition.x)===window.__lanePref){ pick=c; break; }
+            }
           }
           tb=(pick||top[0]).b;
         }
@@ -157,7 +160,7 @@
       } else if(nearBoss){
         tx=px+(nearBoss.node.worldPosition.x>px?-0.8:0.8); mode='dodge-boss';
       } else if(blockNear){
-        tx=(window.__blockPref===0)?3.2:-3.2; mode='block:'+window.__blockPref+':'+Number(blockNear.progress).toFixed(2);
+        tx=(window.__blockPref===0)?2.2:-2.2; mode='block:'+window.__blockPref+':'+Number(blockNear.progress).toFixed(2);
       } else if(tb){
         tx=tb.node.worldPosition.x+Math.sin(Date.now()/280+seed%1000)*0.28; mode='hit:'+tb.rewardId+':'+tb.hp;
       } else if(threat){
