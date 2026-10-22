@@ -22,6 +22,7 @@
   window.__lanePref = Math.random() < 0.5 ? -1 : 1;
   window.__blockPref = Math.random() < 0.5 ? 0 : 1;
   window.__switchedToLv2 = false;
+  window.__mergedLv2 = false; window.__mergeOK = false; window.__mergeErr = null;
   // 前期无敌：每 50ms 把血量拉满；到最后一个 Boss 才解开（之后让 Boss 打死）
   window.__godOff = false;
   if(window.__godTimer) clearInterval(window.__godTimer);
