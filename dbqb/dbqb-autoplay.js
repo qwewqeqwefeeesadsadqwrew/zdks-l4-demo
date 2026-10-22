@@ -18,7 +18,7 @@
     if(window.__dbqb) clearInterval(window.__dbqb);
   window.__dbqbLog=[]; window.__dbqbErr=null; window.__dbqbStart=Date.now(); window.__dbqbDrops=[]; window.__dbqbKilled=[];
   let lastPlayers=0; const seenHp={}; let cur=null;
-  const SKIP=[701,702,703,704,705,708,710,201,707,711,709];
+  const SKIP=[];
   const ROLE=[101,102,103,104,105,106,107,108,109,110,706];
   const VAL={303:100,302:90,304:88,305:86,306:84,307:82,308:80,309:78,310:76,311:74,312:72,313:70,314:68,315:66,316:64,317:62,318:60,319:58,320:56,
     101:80,102:80,103:80,104:80,105:80,106:80,107:80,108:80,109:80,110:80,706:80,
@@ -81,19 +81,16 @@
       let tb=null;
       if(cur && alive(cur)){
         const dz=cur.node.worldPosition.z-pz;
-        if(dz>=-26&&dz<=-3.5) tb=cur;
+        if(dz>=-30&&dz<=1.5) tb=cur;
       }
       if(!tb){
-        let best=-1e9;
+        let best=1e9;
         for(const b of st.buckets){
           if(!alive(b)) continue;
-          if(SKIP.indexOf(b.rewardId)>=0) continue;
           const dz=b.node.worldPosition.z-pz;
-          if(dz<-26||dz>-3.5) continue;
-          // 太近又太厚，打不完
-          if(dz>-6 && b.hp>90) continue;
-          const sc=val(b.rewardId)*1.0 - Math.abs(dz)*0.5 - b.hp*0.03 + prefBonus(b.rewardId) + (rnd()-0.5)*jitter;
-          if(sc>best){best=sc;tb=b;}
+          if(dz<-30||dz>1.5) continue;
+          const sc=Math.abs(dz);
+          if(sc<best){best=sc;tb=b;}
         }
       }
       cur=tb;
@@ -108,16 +105,7 @@
       }
       let tx=px,mode='idle';
       if(bossClose){ var bx=boss3.node.worldPosition.x; st.playerMove(Math.max(-3.65,Math.min(3.65,bx))-px); return; }
-      const imm=danger.filter(function(d){return d.dz>-3.5;});
-      if(imm.length){
-        const left=imm.filter(function(d){return d.x<0;}).length;
-        const right=imm.filter(function(d){return d.x>0;}).length;
-        if(left===0&&right===0)tx=0;
-        else if(left===0)tx=-3.5;
-        else if(right===0)tx=3.5;
-        else tx=0;
-        mode='dodge';
-      } else if(tb){
+      if(tb){
         tx=tb.node.worldPosition.x; mode='hit:'+tb.rewardId+':'+tb.hp;
       } else if(threat){
         tx=threat.node.worldPosition.x; mode='kill-near';
