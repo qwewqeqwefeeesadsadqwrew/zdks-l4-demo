@@ -29,6 +29,10 @@
   window.__stratTimer=setInterval(function(){
     try{
       const st=YT.logic.state;
+      const pl=st.players.find(function(p){return !p.isDead;});
+      if(!pl) return;
+      const px=st.level.playerRoot.position.x;
+      const pz=pl.node.worldPosition.z;
       const rnd=Math.random;
       const prefBonus=function(r){ if(ROLE.indexOf(r)>=0)return 30; if(pref==='atk'&&r>=300&&r<400)return 25; if(pref==='spd'&&r>=400&&r<500)return 25; return 0; };
       // 终局 Boss：血量 >50 万的 Boss
@@ -36,41 +40,6 @@
       for(const e of st.enemies){ if(!e.isDead&&e.isBoss&&e.hp>500000){boss3=e;break;} }
       const pl0=st.players.find(function(p){return !p.isDead;});
       const bossClose=!!(boss3&&pl0&&Math.abs(boss3.node.worldPosition.z-pl0.node.worldPosition.z)<9);
-      // 血量拦截：Boss 3 贴脸前，任何让 hp<=0 的写入都改回 10
-      for(const p of st.players){
-        if(p.__hpHooked) continue;
-        p.__hpHooked=true;
-        var proto=Object.getPrototypeOf(p), desc=null;
-        while(proto && !(desc=Object.getOwnPropertyDescriptor(proto,'hp'))) proto=Object.getPrototypeOf(proto);
-        if(!desc||!desc.set||!desc.get) continue;
-        (function(pl,d){
-          Object.defineProperty(pl,'hp',{configurable:true,
-            get:function(){return d.get.call(pl);},
-            set:function(v){
-              var b3=null;
-              for(const e of st.enemies){ if(!e.isDead&&e.isBoss&&e.hp>500000){b3=e;break;} }
-              var close=b3&&Math.abs(b3.node.worldPosition.z-pl.node.worldPosition.z)<10;
-              if(v<=0&&!close){ v=10; }
-              d.set.call(pl,v);
-            }});
-        })(p,desc);
-      }
-      // 保命：Boss 贴脸前不允许死；血量掉到 3 以下补回 10
-      if(!bossClose){
-        for(const p of st.players){ if(!p.isDead&&p.hp<3){ p.hp=10; if(p.updateHud)p.updateHud(); } }
-      }
-
-      if(!st||st.gameOver){clearInterval(window.__stratTimer);window.__stratTimer=null;return;}
-      const pl=st.players.find(function(p){return !p.isDead;}); if(!pl) return;
-      if(st.players.length<lastPlayers) window.__dbqbDrops.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),lastPlayers,st.players.length]);
-      lastPlayers=st.players.length;
-      const px=st.level.playerRoot.position.x;
-      const pz=pl.node.worldPosition.z;
-      for(const b of st.buckets){
-        const key=b.node.uuid; if(!key) continue;
-        if(seenHp[key]!==undefined && seenHp[key]>0 && (b.isDead||b.hp<=0)) window.__dbqbKilled.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),b.rewardId]);
-        seenHp[key]=b.hp;
-      }
       const danger=[];
       for(const b of st.buckets){
         if(!alive(b)) continue;
@@ -105,7 +74,29 @@
       }
       let tx=px,mode='idle';
       if(bossClose){ var bx=boss3.node.worldPosition.x; st.playerMove(Math.max(-3.65,Math.min(3.65,bx))-px); return; }
-      if(tb){
+      // 非终局 Boss 贴脸：平滑躲开
+      let nearBoss=null;
+      for(const e of st.enemies){
+        if(e.isDead||!e.isBoss) continue;
+        if(e.hp>500000) continue;
+        const dz=e.node.worldPosition.z-pz;
+        if(dz>-10&&dz<3){ nearBoss=e; break; }
+      }
+      // 危险桶（还活着且快经过玩家）
+      const dangerBuckets=[];
+      for(const b of st.buckets){
+        if(!alive(b)||b.hp<=0) continue;
+        const dz=b.node.worldPosition.z-pz;
+        if(dz>-9&&dz<0) dangerBuckets.push({x:b.node.worldPosition.x});
+      }
+      if(nearBoss){
+        tx=px+(nearBoss.node.worldPosition.x>px?-0.6:0.6); mode='dodge-boss';
+      } else if(dangerBuckets.some(function(d){return Math.abs(d.x-px)<1.6;})){
+        const left=dangerBuckets.filter(function(d){return d.x<0;}).length;
+        const right=dangerBuckets.filter(function(d){return d.x>0;}).length;
+        const safeX=left===0?-3.5:(right===0?3.5:0);
+        tx=px+Math.max(-0.55,Math.min(0.55,safeX-px)); mode='dodge-bucket';
+      } else if(tb){
         tx=tb.node.worldPosition.x; mode='hit:'+tb.rewardId+':'+tb.hp;
       } else if(threat){
         tx=threat.node.worldPosition.x; mode='kill-near';
@@ -145,6 +136,11 @@
         }
         if(st&&st.gameOver){
           if(window.__stratTimer){clearInterval(window.__stratTimer);window.__stratTimer=null;}
+          if(window.__lastRec!==window.__roundNo){
+            window.__lastRec=window.__roundNo;
+            window.__roundResults=window.__roundResults||[];
+            window.__roundResults.push({round:window.__roundNo,kills:st.killEnemyCount,boss:st.killedBossCount,players:st.players.length,ts:Date.now()});
+          }
           var root=fgRoot();
           if(root){var btn=findByText(root,'再次挑战');if(btn)fireUp(btn);}
           return;
