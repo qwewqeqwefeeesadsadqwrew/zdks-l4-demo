@@ -87,11 +87,11 @@
       for(const b of st.buckets){
         if(!alive(b)||b.hp<=0) continue;
         const dz=b.node.worldPosition.z-pz;
-        if(dz>-10&&dz<0){ const canHit=(Math.abs(dz)/4)*(st.players.length*5); if(b.hp>canHit*0.8) dangerBuckets.push({x:b.node.worldPosition.x}); }
+        if(dz>-8&&dz<0) dangerBuckets.push({x:b.node.worldPosition.x});
       }
       if(nearBoss){
         tx=px+(nearBoss.node.worldPosition.x>px?-0.6:0.6); mode='dodge-boss';
-      } else if(dangerBuckets.some(function(d){return Math.abs(d.x-px)<1.6;})){
+      } else if(dangerBuckets.some(function(d){return Math.abs(d.x-px)<2.0;})){
         const left=dangerBuckets.filter(function(d){return d.x<0;}).length;
         const right=dangerBuckets.filter(function(d){return d.x>0;}).length;
         const safeX=(left===0&&right===0)?((rnd()<0.5?-1:1)*3.5):(left===0?-3.5:(right===0?3.5:0));
