@@ -143,6 +143,7 @@
     var phase=0, tClick=0;
     setInterval(function(){
       try{
+        try{ var cfgM=System.get('chunks:///_virtual/G103LevelConfig.ts'); if(cfgM&&cfgM.G103LevelConfig){ var dd=cfgM.G103LevelConfig.data; if(dd[1]&&dd[1].players)dd[1].players[0]=3; if(dd[2]&&dd[2].players)dd[2].players[0]=3; } }catch(e){}
         var m=System.get('chunks:///_virtual/YT.ts');
         var YT=m&&m.YT; if(!YT||!YT.logic) return;
         var st=YT.logic.state;
