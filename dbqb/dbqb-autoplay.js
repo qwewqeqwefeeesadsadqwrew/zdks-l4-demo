@@ -58,7 +58,7 @@
           if(bigElapsed>window.__bigDur||bdz>-4){
             const bx=bigBucket.node.worldPosition.x;
             const escapeX=bx>=0?-3.5:3.5;
-            st.playerMove(Math.max(-0.65,Math.min(0.65,escapeX-px)));
+            st.playerMove(Math.max(-1.6,Math.min(1.6,escapeX-px)));
             window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),'dodge-big',+px.toFixed(2),st.killEnemyCount,st.players.length,pl.hp]);
             return;
           }
