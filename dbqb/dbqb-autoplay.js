@@ -55,19 +55,42 @@
       let boss3=null;
       for(const e of st.enemies){ if(!e.isDead&&e.isBoss&&e.hp>500000){boss3=e;break;} }
       // 最后一个 Boss 露脸时解开无敌（之后会被它打死，演示"打到最后一关才牺牲"）
-      if(!window.__godOff&&st.config&&st.config.id===2&&st.enemies.some(function(e){return !e.isDead&&e.isBoss;})){
+      if(!window.__godOff&&st.config&&st.enemies.some(function(e){return !e.isDead&&e.isBoss;})){
         const remain=(st.config.boss_count||0)-st.killedBossCount;
         if(remain<=1){ window.__godOff=true; window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),'god-off',+px.toFixed(2),st.killEnemyCount,st.players.length,pl.hp]); }
       }
-      // 第一关最终 Boss 一露面就切第二关，把两关接成一局（第一关那个 888888 血的 Boss 不打）
-      if(boss3&&!window.__switchedToLv2&&st.config&&st.config.id===1){
-        window.__switchedToLv2=true;
-        window.__bigStart=null; window.__bigDur=0;
-        window.__lanePref=Math.random()<0.5?-1:1;
-        window.__blockPref=Math.random()<0.5?0:1;
-        window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),'switch-lv2',+px.toFixed(2),st.killEnemyCount,st.players.length,pl.hp]);
-        st.nextLevel();
-        return;
+      // 第一关加载后，把第二关的地图整块接到它后面（运行时合并成一张长地图，不是换关）
+      if(st.config&&st.config.id===1&&!window.__mergedLv2&&st.level&&st.level.node&&st.level.node.name==='level_002'){
+        window.__mergedLv2=true;
+        try{
+          const cc=window.cc;
+          const bundle=cc&&cc.assetManager&&cc.assetManager.getBundle('game103');
+          if(bundle){
+            bundle.load('prefabs/levels/level_007',cc.Prefab,function(err,prefab){
+              if(err){window.__mergeErr=String(err);return;}
+              try{
+                const s2=YT.logic.state;
+                const node=cc.instantiate(prefab);
+                // 第一关地图从 +25 延伸到 -665，第二关整块平移到 -700 之后接上
+                node.setPosition(0,0,-700);
+                s2.level.levelRoot.addChild(node);
+                // 合并后总 Boss 数 = 第一关 3 + 第二关 4 = 7，否则打满 3 个就提前判通关
+                if(s2.config){ s2.config.boss_count=(s2.config.boss_count||3)+4; }
+                const bm=System.get('chunks:///_virtual/G103Bucket.ts');
+                const bk=System.get('chunks:///_virtual/G103Block.ts');
+                const gm=System.get('chunks:///_virtual/EnemyGroupCmp.ts');
+                const Bucket=bm&&(bm.G103Bucket||bm.default);
+                const Block=bk&&(bk.G103Block||bk.default);
+                const Group=gm&&(gm.default||gm.EnemyGroupCmp);
+                if(Bucket){const nb=node.getComponentsInChildren(Bucket);nb.forEach(function(b){try{b.onInit()}catch(e){}});s2.buckets=s2.buckets.concat(nb);}
+                if(Block){const nbl=node.getComponentsInChildren(Block);nbl.forEach(function(b){try{b.onInit()}catch(e){}});s2.blocks=s2.blocks.concat(nbl);}
+                if(Group){const ng=node.getComponentsInChildren(Group);ng.forEach(function(g){try{g.startMove()}catch(e){}});s2.enemyGroups=s2.enemyGroups.concat(ng);}
+                window.__mergeOK=true;
+                window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),'merge-lv2',0,0,0,0]);
+              }catch(e){window.__mergeErr=String(e);}
+            });
+          }
+        }catch(e){window.__mergeErr=String(e);}
       }
       const pl0=st.players.find(function(p){return !p.isDead;});
       const bossClose=!!(boss3&&pl0&&Math.abs(boss3.node.worldPosition.z-pl0.node.worldPosition.z)<9);
