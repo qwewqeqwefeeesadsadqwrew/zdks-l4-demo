@@ -2,7 +2,7 @@
 // ⚠ 不要用 cache.match(req, {ignoreSearch:true})：Chrome 对每一条缓存做线性扫描，
 //    几千条缓存 × 几百个请求会把主线程拖死（实测页面卡死数分钟）。这里按「去掉 query 的完整 URL」精确匹配。
 const CACHE = 'zdks-l4-demo-v1';
-const ALWAYS_NETWORK = /(?:index\.html|precache\.js|precache\.json|sw\.js)$/;
+const ALWAYS_NETWORK = /(?:index\.html|precache\.js|precache\.json|sw\.js|autoplay\.js)$/;
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', e => {
