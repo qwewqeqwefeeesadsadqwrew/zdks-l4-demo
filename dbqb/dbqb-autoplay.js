@@ -76,7 +76,7 @@
                 node.setPosition(0,0,-700);
                 s2.level.levelRoot.addChild(node);
                 // 合并后总 Boss 数 = 第一关 3 + 第二关 4 = 7，否则打满 3 个就提前判通关
-                if(s2.config){ s2.config.boss_count=(s2.config.boss_count||3)+4; }
+                if(s2.config){ s2.config.boss_count=7; }
                 const bm=System.get('chunks:///_virtual/G103Bucket.ts');
                 const bk=System.get('chunks:///_virtual/G103Block.ts');
                 const gm=System.get('chunks:///_virtual/EnemyGroupCmp.ts');
