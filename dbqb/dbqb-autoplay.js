@@ -149,13 +149,7 @@
       if(dangerBuckets.some(function(d){return Math.abs(d.x-px)<2.0;})){
         let nearest=null;
         for(const d of dangerBuckets){ if(!nearest||d.dz>nearest.dz) nearest=d; }
-        const safeBase=(nearest&&nearest.x>=0)?-3.5:3.5;
-        let safeX=safeBase;
-        // 对面车道也有桶时，往中间躲，避免撞上另一个
-        for(const d of dangerBuckets){
-          if(d===nearest) continue;
-          if(Math.abs(d.x-safeBase)<2.2){ safeX=0; break; }
-        }
+        const safeX=(nearest&&nearest.x>=0)?-3.5:3.5;
         tx=px+Math.max(-1.6,Math.min(1.6,safeX-px)); mode='dodge-bucket';
       } else if(nearBoss){
         tx=px+(nearBoss.node.worldPosition.x>px?-0.8:0.8); mode='dodge-boss';
