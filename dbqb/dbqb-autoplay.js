@@ -53,7 +53,7 @@
       if(bigBucket){
         const bdz=bigBucket.node.worldPosition.z-pz;
         if(bdz>-26&&bdz<1.5){
-          if(!window.__bigStart){ window.__bigStart=Date.now(); window.__bigDur=4.5+Math.random()*0.7; }
+          if(!window.__bigStart){ window.__bigStart=Date.now(); window.__bigDur=2.5+Math.random()*1.0; }
           const bigElapsed=(Date.now()-window.__bigStart)/1000;
           if(bigElapsed>window.__bigDur||bdz>-4){
             const bx=bigBucket.node.worldPosition.x;
