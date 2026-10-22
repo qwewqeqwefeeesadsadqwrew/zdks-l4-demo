@@ -101,15 +101,7 @@
         if(cands.length){
           cands.sort(function(x,y){return x.d-y.d;});
           // 两个桶都在射程内时，优先本局偏好那一侧（每局随机，操作不重复）
-          const top=cands.slice(0,2);
-          let pick=null;
-          // 只有两个桶距离接近时才用本局偏好；差太多还是打近的，避免来回横跨送死
-          if(top.length>1&&top[0].d<15&&Math.abs(top[0].d-top[1].d)<5){
-            for(const c of top){
-              if(Math.sign(c.b.node.worldPosition.x)===window.__lanePref){ pick=c; break; }
-            }
-          }
-          tb=(pick||top[0]).b;
+          tb=cands[0].b;
         }
       }
       cur=tb;
@@ -152,7 +144,7 @@
         let nearest=null;
         for(const d of dangerBuckets){ if(!nearest||d.dz>nearest.dz) nearest=d; }
         const safeX=(nearest&&nearest.x>=0)?-3.5:3.5;
-        tx=px+Math.max(-1.6,Math.min(1.6,safeX-px)); mode='dodge-bucket';
+        tx=px+Math.max(-0.65,Math.min(0.65,safeX-px)); mode='dodge-bucket';
       } else if(nearBoss){
         tx=px+(nearBoss.node.worldPosition.x>px?-0.8:0.8); mode='dodge-boss';
       } else if(blockNear){
