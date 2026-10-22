@@ -17,6 +17,7 @@
     if(!window.__roundInfo||window.__roundInfo.round!==window.__roundNo) window.__roundInfo={round:window.__roundNo,seed:seed,pref:pref,jitter:+jitter.toFixed(3),dodgeBase:+dodgeBase.toFixed(3),centerBias:+centerBias.toFixed(3)};
     if(window.__dbqb) clearInterval(window.__dbqb);
   window.__dbqbLog=[]; window.__dbqbErr=null; window.__dbqbStart=Date.now(); window.__dbqbDrops=[]; window.__dbqbKilled=[];
+  window.__bigStart=null; window.__bigDur=0;
   let lastPlayers=0; const seenHp={}; let cur=null;
   const SKIP=[];
   const ROLE=[101,102,103,104,105,106,107,108,109,110,706];
@@ -46,14 +47,15 @@
         const dz=b.node.worldPosition.z-pz;
         if(dz>-8&&dz<2) danger.push({x:b.node.worldPosition.x,dz:dz,hp:b.hp,rid:b.rewardId});
       }
-      // 最后一个大桶（2000 血）：打 1.5 秒就躲开
+      // 最后一个大桶（2000 血）：打 4.5~5.2 秒随机再躲；桶逼近 4 单位时硬保险强制躲
       let bigBucket=null;
       for(const b of st.buckets){ if(alive(b)&&b.hp>=1000){bigBucket=b;break;} }
       if(bigBucket){
         const bdz=bigBucket.node.worldPosition.z-pz;
         if(bdz>-26&&bdz<1.5){
-          if(!window.__bigStart){ window.__bigStart=Date.now(); window.__bigDur=1.0+Math.random()*1.5; }
-          if((Date.now()-window.__bigStart)/1000>window.__bigDur){
+          if(!window.__bigStart){ window.__bigStart=Date.now(); window.__bigDur=4.5+Math.random()*0.7; }
+          const bigElapsed=(Date.now()-window.__bigStart)/1000;
+          if(bigElapsed>window.__bigDur||bdz>-4){
             const bx=bigBucket.node.worldPosition.x;
             const escapeX=bx>=0?-3.5:3.5;
             st.playerMove(Math.max(-0.65,Math.min(0.65,escapeX-px)));
