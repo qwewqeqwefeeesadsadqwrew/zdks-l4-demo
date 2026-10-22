@@ -102,7 +102,7 @@
           cands.sort(function(x,y){return x.d-y.d;});
           // 两个桶都在射程内时，优先本局偏好那一侧（每局随机，操作不重复）
           const top=cands.slice(0,2);
-          if(top.length>1&&Math.abs(top[0].d-top[1].d)<2&&Math.sign(top[1].b.node.worldPosition.x)===window.__lanePref){
+          if(top.length>1&&st.players.length>=10&&Math.abs(top[0].d-top[1].d)<2&&Math.sign(top[1].b.node.worldPosition.x)===window.__lanePref){
             tb=top[1].b;
           } else {
             tb=top[0].b;
