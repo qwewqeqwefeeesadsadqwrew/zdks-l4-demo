@@ -141,10 +141,12 @@
       }
       // 红蓝门：进入射程就按本局随机的方向站边（0=站右边推到左端，1=站左边推到右端）
       let blockNear=null;
-      for(const bl of st.blocks){
-        if(!bl||!bl.node||!bl.node.active) continue;
-        const dz=bl.node.worldPosition.z-pz;
-        if(dz>-22&&dz<2&&bl.progress>0.03&&bl.progress<0.97){ blockNear=bl; break; }
+      if(!tb){
+        for(const bl of st.blocks){
+          if(!bl||!bl.node||!bl.node.active) continue;
+          const dz=bl.node.worldPosition.z-pz;
+          if(dz>-22&&dz<2&&bl.progress>0.03&&bl.progress<0.97){ blockNear=bl; break; }
+        }
       }
       if(dangerBuckets.some(function(d){return Math.abs(d.x-px)<2.0;})){
         let nearest=null;
