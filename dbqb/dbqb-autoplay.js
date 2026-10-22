@@ -57,7 +57,13 @@
           const bigElapsed=(Date.now()-window.__bigStart)/1000;
           if(bigElapsed>window.__bigDur||bdz>-4){
             const bx=bigBucket.node.worldPosition.x;
-            const escapeX=bx>=0?-3.5:3.5;
+            let escapeX=bx>=0?-3.5:3.5;
+            // 对面车道也有桶逼近时，往中间躲，避免撞上另一个
+            for(const ob of st.buckets){
+              if(ob===bigBucket||!alive(ob)) continue;
+              const odz=ob.node.worldPosition.z-pz;
+              if(odz>-20&&odz<2&&Math.abs(ob.node.worldPosition.x-escapeX)<2.2){ escapeX=0; break; }
+            }
             st.playerMove(Math.max(-1.6,Math.min(1.6,escapeX-px)));
             window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),'dodge-big',+px.toFixed(2),st.killEnemyCount,st.players.length,pl.hp]);
             return;
@@ -110,8 +116,14 @@
       if(dangerBuckets.some(function(d){return Math.abs(d.x-px)<2.0;})){
         let nearest=null;
         for(const d of dangerBuckets){ if(!nearest||d.dz>nearest.dz) nearest=d; }
-        const safeX=(nearest&&nearest.x>=0)?-3.5:3.5;
-        tx=px+Math.max(-0.65,Math.min(0.65,safeX-px)); mode='dodge-bucket';
+        const safeBase=(nearest&&nearest.x>=0)?-3.5:3.5;
+        let safeX=safeBase;
+        // 对面车道也有桶时，往中间躲，避免撞上另一个
+        for(const d of dangerBuckets){
+          if(d===nearest) continue;
+          if(Math.abs(d.x-safeBase)<2.2){ safeX=0; break; }
+        }
+        tx=px+Math.max(-1.6,Math.min(1.6,safeX-px)); mode='dodge-bucket';
       } else if(nearBoss){
         tx=px+(nearBoss.node.worldPosition.x>px?-0.8:0.8); mode='dodge-boss';
       } else if(tb){
