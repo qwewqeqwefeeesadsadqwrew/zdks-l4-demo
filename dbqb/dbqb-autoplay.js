@@ -18,6 +18,9 @@
     if(window.__dbqb) clearInterval(window.__dbqb);
   window.__dbqbLog=[]; window.__dbqbErr=null; window.__dbqbStart=Date.now(); window.__dbqbDrops=[]; window.__dbqbKilled=[];
   window.__bigStart=null; window.__bigDur=0;
+  // 本局随机偏好：先打哪一侧的桶、红蓝门往哪边推（每局重新随机，保证操作不重复）
+  window.__lanePref = Math.random() < 0.5 ? -1 : 1;
+  window.__blockPref = Math.random() < 0.5 ? 0 : 1;
   let lastPlayers=0; const seenHp={}; let cur=null;
   const SKIP=[];
   const ROLE=[101,102,103,104,105,106,107,108,109,110,706];
@@ -77,13 +80,22 @@
         if(dz>=-30&&dz<=1.5) tb=cur;
       }
       if(!tb){
-        let best=1e9;
+        const cands=[];
         for(const b of st.buckets){
           if(!alive(b)) continue;
           const dz=b.node.worldPosition.z-pz;
           if(dz<-30||dz>1.5) continue;
-          const sc=Math.abs(dz);
-          if(sc<best){best=sc;tb=b;}
+          cands.push({b:b,d:Math.abs(dz)});
+        }
+        if(cands.length){
+          cands.sort(function(x,y){return x.d-y.d;});
+          // 两个桶都在射程内时，优先本局偏好那一侧（每局随机，操作不重复）
+          const top=cands.slice(0,2);
+          let pick=null;
+          for(const c of top){
+            if(Math.sign(c.b.node.worldPosition.x)===window.__lanePref){ pick=c; break; }
+          }
+          tb=(pick||top[0]).b;
         }
       }
       cur=tb;
@@ -113,6 +125,13 @@
         const dz=b.node.worldPosition.z-pz;
         if(dz>-8&&dz<0) dangerBuckets.push({x:b.node.worldPosition.x,dz:dz});
       }
+      // 红蓝门：进入射程就按本局随机的方向站边（0=站右边推到左端，1=站左边推到右端）
+      let blockNear=null;
+      for(const bl of st.blocks){
+        if(!bl||!bl.node||!bl.node.active) continue;
+        const dz=bl.node.worldPosition.z-pz;
+        if(dz>-22&&dz<2&&bl.progress>0.03&&bl.progress<0.97){ blockNear=bl; break; }
+      }
       if(dangerBuckets.some(function(d){return Math.abs(d.x-px)<2.0;})){
         let nearest=null;
         for(const d of dangerBuckets){ if(!nearest||d.dz>nearest.dz) nearest=d; }
@@ -126,6 +145,8 @@
         tx=px+Math.max(-1.6,Math.min(1.6,safeX-px)); mode='dodge-bucket';
       } else if(nearBoss){
         tx=px+(nearBoss.node.worldPosition.x>px?-0.8:0.8); mode='dodge-boss';
+      } else if(blockNear){
+        tx=(window.__blockPref===0)?3.2:-3.2; mode='block:'+window.__blockPref+':'+Number(blockNear.progress).toFixed(2);
       } else if(tb){
         tx=tb.node.worldPosition.x+Math.sin(Date.now()/280+seed%1000)*0.28; mode='hit:'+tb.rewardId+':'+tb.hp;
       } else if(threat){
