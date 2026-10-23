@@ -44,7 +44,7 @@
     const S=sm&&sm.default;
     if(S&&S.prototype&&!S.prototype.__daisyNoRemove){
       const origRemove=S.prototype.removePlayer;
-      S.prototype.removePlayer=function(){ if(!window.__godOff) return; return origRemove.apply(this,arguments); };
+      S.prototype.removePlayer=function(){ if(!window.__finalFail) return; return origRemove.apply(this,arguments); };
       S.prototype.__daisyNoRemove=true;
     }
   }catch(e){}
@@ -79,7 +79,7 @@
         try{
           const origRemove=S2.prototype.removePlayer;
           Object.defineProperty(S2.prototype,'removePlayer',{
-            value:function(){ if(!window.__godOff) return; return origRemove.apply(this,arguments); },
+            value:function(){ if(!window.__finalFail) return; return origRemove.apply(this,arguments); },
             writable:true, configurable:true
           });
           S2.prototype.__daisyNoRemove=true;
@@ -88,7 +88,11 @@
       }
       const s2=YT.logic.state;
       if(!s2||!s2.players) return;
-      for(const p of s2.players){ if(p&&p.hp<100) p.hp=9999; }
+      for(const p of s2.players){
+        if(!p) continue;
+        if(window.__godOff){ if(p.hp>10) p.hp=10; }     // 最后阶段：血量维持 10，看起来在挨打
+        else { if(p.hp<100) p.hp=9999; }                 // 前期：无敌
+      }
     }catch(e){}
   },50);
   let lastPlayers=0; const seenHp={}; let cur=null;
@@ -110,7 +114,7 @@
         if(S2&&S2.prototype&&!S2.prototype.__daisyNoRemove){
           const origRemove=S2.prototype.removePlayer;
           Object.defineProperty(S2.prototype,'removePlayer',{
-            value:function(){ if(!window.__godOff) return; return origRemove.apply(this,arguments); },
+            value:function(){ if(!window.__finalFail) return; return origRemove.apply(this,arguments); },
             writable:true, configurable:true
           });
           S2.prototype.__daisyNoRemove=true;
@@ -133,9 +137,16 @@
         window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),'nerf-boss3',+px.toFixed(2),st.killEnemyCount,st.players.length,pl.hp]);
       }
       // 最后一个 Boss 露脸时解开无敌（之后会被它打死，演示"打到最后一关才牺牲"）
-      if(!window.__godOff&&st.config&&st.enemies.some(function(e){return !e.isDead&&e.isBoss;})){
-        const remain=(st.config.boss_count||0)-st.killedBossCount;
-        if(remain<=1){ window.__godOff=true; window.__lastBossMax=0; window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),'god-off',+px.toFixed(2),st.killEnemyCount,st.players.length,pl.hp]); }
+      if(!window.__godOff&&st.config&&st.enemies.some(function(e){return !e.isDead&&e.isBoss&&e.hp>1000000;})){
+        window.__godOff=true;
+        window.__lastBossMax=0;
+        for(const e of st.enemies){ if(!e.isDead&&e.isBoss&&e.hp>1000000){ window.__finalMaxHp=e.hp; break; } }
+        window.__finalFloor=(window.__finalMaxHp||0)*(0.10+Math.random()*0.20);
+        window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),'god-off',+px.toFixed(2),st.killEnemyCount,st.players.length,pl.hp]);
+      }
+      // 最后阶段立刻把玩家血量拉回 10（取消无敌），Boss 才能打死人
+      if(window.__godOff){
+        for(const p of st.players){ if(!p.isDead&&p.hp>10){ p.hp=10; } }
       }
       // 最后阶段：Boss 正常掉血但锁在 10%~30%；掉到阈值时玩家全灭，判定失败
       if(window.__godOff&&!window.__finalFail){
