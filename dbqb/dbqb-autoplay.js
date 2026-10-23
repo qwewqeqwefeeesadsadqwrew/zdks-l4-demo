@@ -37,6 +37,16 @@
       P.prototype.__daisyHooked=true;
     }
   }catch(e){}
+  // 最后一个 Boss 免伤：godOff 阶段 Boss 不吃任何伤害，子弹打上去不掉血，必输
+  try{
+    const em=System.get('chunks:///_virtual/G103Enemy.ts');
+    const E=em&&(em.G103Enemy||em.default);
+    if(E&&E.prototype&&!E.prototype.__daisyNoDmg){
+      const origHit=E.prototype.onHit;
+      E.prototype.onHit=function(d){ if(window.__godOff&&this&&this.isBoss) return; return origHit.apply(this,arguments); };
+      E.prototype.__daisyNoDmg=true;
+    }
+  }catch(e){}
   if(window.__godTimer) clearInterval(window.__godTimer);
   window.__godTimer = setInterval(function(){
     if(window.__godOff) return;
@@ -222,7 +232,7 @@
         const safeX=(nearest&&nearest.x>=0)?-3.5:3.5;
         tx=px+Math.max(-0.65,Math.min(0.65,safeX-px)); mode='dodge-bucket';
       } else if(nearBoss){
-        tx=px+(nearBoss.node.worldPosition.x>px?-0.8:0.8); mode='dodge-boss';
+        tx=nearBoss.node.worldPosition.x; mode='face-boss';
       } else if(blockNear){
         tx=(window.__blockPref===0)?2.2:-2.2; mode='block:'+window.__blockPref+':'+Number(blockNear.progress).toFixed(2);
       } else if(tb){
