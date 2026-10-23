@@ -37,6 +37,16 @@
       P.prototype.__daisyHooked=true;
     }
   }catch(e){}
+  // 无敌第三道：godOff 之前不允许游戏移除玩家（桶压/敌人打都不生效）
+  try{
+    const sm=System.get('chunks:///_virtual/Game103State.ts');
+    const S=sm&&sm.default;
+    if(S&&S.prototype&&!S.prototype.__daisyNoRemove){
+      const origRemove=S.prototype.removePlayer;
+      S.prototype.removePlayer=function(){ if(!window.__godOff) return; return origRemove.apply(this,arguments); };
+      S.prototype.__daisyNoRemove=true;
+    }
+  }catch(e){}
   // 最后一个 Boss 免伤：godOff 阶段 Boss 不吃任何伤害，子弹打上去不掉血，必输
   try{
     const em=System.get('chunks:///_virtual/G103Enemy.ts');
