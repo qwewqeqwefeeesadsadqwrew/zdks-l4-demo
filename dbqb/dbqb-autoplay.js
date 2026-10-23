@@ -43,7 +43,7 @@
     const E=em&&(em.G103Enemy||em.default);
     if(E&&E.prototype&&!E.prototype.__daisyNoDmg){
       const origHit=E.prototype.onHit;
-      E.prototype.onHit=function(d){ if(window.__godOff&&this&&this.isBoss) return; return origHit.apply(this,arguments); };
+      E.prototype.onHit=function(d){ if(window.__godOff&&this&&this.isBoss&&this.hp>1000000) return; return origHit.apply(this,arguments); };
       E.prototype.__daisyNoDmg=true;
     }
   }catch(e){}
