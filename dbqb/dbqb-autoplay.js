@@ -177,8 +177,9 @@
               try{
                 const s2=YT.logic.state;
                 const node=cc.instantiate(prefab);
-                // 第一关地图从 +25 延伸到 -665，第二关整块平移到 -700 之后接上
-                node.setPosition(0,0,-700);
+                // 第一关地图从 +25 延伸到 -665；第二关整块平移到 -400，和第一关后半段交叠，
+                // 缩短"第一关清完、第二关敌人还没走到"的空窗期
+                node.setPosition(0,0,-400);
                 s2.level.levelRoot.addChild(node);
                 // 合并后总 Boss 数 = 第一关 3 + 第二关 4 = 7，否则打满 3 个就提前判通关
                 if(s2.config){ s2.config.boss_count=7; }
