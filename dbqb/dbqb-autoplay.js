@@ -82,8 +82,8 @@
       if(window.__godOff){
         for(const e of st.enemies){
           if(e.isDead||!e.isBoss) continue;
-          if(!window.__lastBossMax||window.__lastBossMax<=0){ window.__lastBossMax=e.hp; }
-          if(window.__lastBossMax>0&&e.hp>0&&e.hp<=window.__lastBossMax*0.06){
+          if(e.hp>(window.__lastBossMax||0)) window.__lastBossMax=e.hp;
+          if(window.__lastBossMax>0&&e.hp>0&&e.hp<=window.__lastBossMax*0.20){
             for(const p of st.players){ if(!p.isDead){ p.hp=0; } }
             window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),'final-fail',+px.toFixed(2),st.killEnemyCount,st.players.length,0]);
             return;
