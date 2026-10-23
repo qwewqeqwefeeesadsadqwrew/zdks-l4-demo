@@ -71,12 +71,20 @@
     if(window.__finalFail) return;
     try{
       // 延迟补挂 removePlayer 拦网：模块可能要等一会儿才加载完
+      window.__hookTried=(window.__hookTried||0)+1;
       const sm2=System.get('chunks:///_virtual/Game103State.ts');
       const S2=sm2&&sm2.default;
+      window.__hookSeen=!!(S2&&S2.prototype);
       if(S2&&S2.prototype&&!S2.prototype.__daisyNoRemove){
-        const origRemove=S2.prototype.removePlayer;
-        S2.prototype.removePlayer=function(){ if(!window.__godOff) return; return origRemove.apply(this,arguments); };
-        S2.prototype.__daisyNoRemove=true;
+        try{
+          const origRemove=S2.prototype.removePlayer;
+          Object.defineProperty(S2.prototype,'removePlayer',{
+            value:function(){ if(!window.__godOff) return; return origRemove.apply(this,arguments); },
+            writable:true, configurable:true
+          });
+          S2.prototype.__daisyNoRemove=true;
+          window.__hookDone=(window.__hookDone||0)+1;
+        }catch(e){ window.__hookErr=String(e); }
       }
       const s2=YT.logic.state;
       if(!s2||!s2.players) return;
