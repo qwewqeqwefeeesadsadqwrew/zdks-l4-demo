@@ -27,6 +27,16 @@
   window.__lastBossMax = 0;
   // 前期无敌：每 50ms 把血量拉满；到最后一个 Boss 才解开（之后让 Boss 打死）
   window.__godOff = false;
+  // 无敌第二道：拦截 onHit，伤害直接归零；godOff 之后自动放行
+  try{
+    const pm=System.get('chunks:///_virtual/G103Player.ts');
+    const P=pm&&(pm.G103Player||pm.default);
+    if(P&&P.prototype&&!P.prototype.__daisyHooked){
+      const orig=P.prototype.onHit;
+      P.prototype.onHit=function(){ if(!window.__godOff) return Promise.resolve(); return orig.apply(this,arguments); };
+      P.prototype.__daisyHooked=true;
+    }
+  }catch(e){}
   if(window.__godTimer) clearInterval(window.__godTimer);
   window.__godTimer = setInterval(function(){
     if(window.__godOff) return;
