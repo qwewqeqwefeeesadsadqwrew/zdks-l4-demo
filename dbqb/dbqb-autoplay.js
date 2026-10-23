@@ -24,6 +24,7 @@
   window.__switchedToLv2 = false;
   window.__mergedLv2 = false; window.__mergeOK = false; window.__mergeErr = null;
   window.__boss3Nerfed = false;
+  window.__lastBossMax = 0;
   // 前期无敌：每 50ms 把血量拉满；到最后一个 Boss 才解开（之后让 Boss 打死）
   window.__godOff = false;
   if(window.__godTimer) clearInterval(window.__godTimer);
@@ -65,7 +66,20 @@
       // 最后一个 Boss 露脸时解开无敌（之后会被它打死，演示"打到最后一关才牺牲"）
       if(!window.__godOff&&st.config&&st.enemies.some(function(e){return !e.isDead&&e.isBoss;})){
         const remain=(st.config.boss_count||0)-st.killedBossCount;
-        if(remain<=1){ window.__godOff=true; window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),'god-off',+px.toFixed(2),st.killEnemyCount,st.players.length,pl.hp]); }
+        if(remain<=1){ window.__godOff=true; window.__lastBossMax=0; window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),'god-off',+px.toFixed(2),st.killEnemyCount,st.players.length,pl.hp]); }
+      }
+      // 最后一个 Boss：血剩一丝时让玩家全灭（看起来就是差一点点打不过）
+      if(window.__godOff){
+        for(const e of st.enemies){
+          if(e.isDead||!e.isBoss) continue;
+          if(!window.__lastBossMax||window.__lastBossMax<=0){ window.__lastBossMax=e.hp; }
+          if(window.__lastBossMax>0&&e.hp>0&&e.hp<=window.__lastBossMax*0.06){
+            for(const p of st.players){ if(!p.isDead){ p.hp=0; } }
+            window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),'final-fail',+px.toFixed(2),st.killEnemyCount,st.players.length,0]);
+            return;
+          }
+          break;
+        }
       }
       // 第一关加载后，把第二关的地图整块接到它后面（运行时合并成一张长地图，不是换关）
       if(st.config&&st.config.id===1&&!window.__mergedLv2&&st.level&&st.level.node&&st.level.node.name==='level_002'){
