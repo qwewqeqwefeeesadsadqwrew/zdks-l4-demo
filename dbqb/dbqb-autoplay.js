@@ -72,7 +72,7 @@
     try{
       const s2=YT.logic.state;
       if(!s2||!s2.players) return;
-      for(const p of s2.players){ if(p&&!p.isDead&&p.hp<100) p.hp=9999; }
+      for(const p of s2.players){ if(p&&p.hp<100) p.hp=9999; }
     }catch(e){}
   },50);
   let lastPlayers=0; const seenHp={}; let cur=null;
