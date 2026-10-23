@@ -103,6 +103,20 @@
   window.__stratTimer=setInterval(function(){
     try{
       const st=YT.logic.state;
+      // 主循环里补挂 removePlayer 拦网（定时器可能不跑，主循环一定在跑）
+      try{
+        const sm2=System.get('chunks:///_virtual/Game103State.ts');
+        const S2=sm2&&sm2.default;
+        if(S2&&S2.prototype&&!S2.prototype.__daisyNoRemove){
+          const origRemove=S2.prototype.removePlayer;
+          Object.defineProperty(S2.prototype,'removePlayer',{
+            value:function(){ if(!window.__godOff) return; return origRemove.apply(this,arguments); },
+            writable:true, configurable:true
+          });
+          S2.prototype.__daisyNoRemove=true;
+          window.__hookDone=(window.__hookDone||0)+1;
+        }
+      }catch(e){ window.__hookErr=String(e); }
       const pl=st.players.find(function(p){return !p.isDead;});
       if(!pl) return;
       const px=st.level.playerRoot.position.x;
