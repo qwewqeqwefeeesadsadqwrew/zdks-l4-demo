@@ -1,7 +1,7 @@
 /* 全量预缓存：第一次打开就把整包下到本地，之后每一关都走缓存 */
 (function () {
-  var CACHE = 'zdks-l4-demo-v1';
-  var DONE = 'wlzs-precache-done-v1';
+  var CACHE = 'zdks-l4-demo-wlzs-v1';
+  var DONE = 'precache-done-zdks-l4-demo-wlzs-v1-v2';
   var LIST = 'precache.json';
   var CONC = 6;
 
@@ -17,7 +17,13 @@
   function fmt(n) { return (n / 1048576).toFixed(1) + 'MB'; }
 
   function start() {
-    fetch(LIST, { cache: 'no-cache' }).then(function (r) { return r.json(); }).then(function (data) {
+    fetch(LIST + '?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (data) {
+      if (!/^\//.test(data.base)) {
+        localStorage.removeItem(DONE);
+        box.textContent = '预缓存清单异常：base 必须以 / 开头，实际=' + data.base;
+        setTimeout(function () { box.remove(); }, 10000);
+        return;
+      }
       var files = data.files, totalBytes = 0, i;
       for (i = 0; i < files.length; i++) totalBytes += files[i][1];
       caches.open(CACHE).then(function (cache) {
