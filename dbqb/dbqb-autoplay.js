@@ -141,7 +141,7 @@
       if(window.__godOff&&!window.__finalFail){
         for(const e of st.enemies){
           if(e.isDead||!e.isBoss) continue;
-          if(e.hp>1000000){
+          if(window.__finalMaxHp||e.hp>1000000){
             if(!window.__finalMaxHp){ window.__finalMaxHp=e.hp; window.__finalFloor=e.hp*(0.10+Math.random()*0.20); }
             if(e.hp<=window.__finalFloor){
               window.__finalFail=true;
