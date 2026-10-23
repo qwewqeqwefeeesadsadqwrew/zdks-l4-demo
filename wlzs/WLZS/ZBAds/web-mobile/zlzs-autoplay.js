@@ -23,6 +23,7 @@
         running: A.running, why: A._why || null, stats: A.stats,
         mini: p ? p.currentMiniLv : null, step: p ? p.currentStepNum : null,
         fin: p ? p.currentStepFinishNum : null, lastGesture: A.lastGesture || null,
+        intro: pendingIntro ? { leftMs: Math.max(0, (introFrom ? introFrom + introMs : Date.now() + introMs) - Date.now()), totalMs: Math.round(introMs) } : null,
         gestures: A.gestures.slice(-8),
         log: A.log.slice(-25), err: A.err
       });
@@ -30,6 +31,7 @@
   };
   window.__zlzsAuto = A;
   function recordGesture(g) {
+    g.at = Date.now(); // 出手时刻（验收用：算转场后过了多久才动手）
     A.lastGesture = g;
     A.gestures.push(g);
     if (A.gestures.length > 12) A.gestures.shift();
@@ -435,7 +437,18 @@
   }
 
   var lastProg = '', lastAt = 0, idle = 0, gen = 0, waitUntil = 0, lastMini = -1, lastStep = -1;
+  // 开局/转场后"先看一眼画面"：遮罩落下后先停 3~5 秒再出手。
+  var pendingIntro = false, introFrom = 0, introMs = 0, lastMiniSeen = -1, lastPre = null;
   var REPEAT = { ClickMaxNum: 1, ClickTimeNum: 1, TouchCuo: 1 };
+  function beginIntro(why) {
+    // 同一个"看画面"窗口只计一次：还在等（尚未开始计时）就不重置，避免换关时叠加成 6~10 秒
+    if (pendingIntro && !introFrom) return;
+    pendingIntro = true;
+    introFrom = 0;
+    introMs = 3000 + Math.random() * 2000;
+    A.log.push('INTRO ' + why + ' ' + (introMs / 1000).toFixed(1) + 's');
+    if (A.log.length > 200) A.log.splice(0, A.log.length - 200);
+  }
   function tweenDur(arr, depth) {
     var t = 0;
     if (!arr || (depth || 0) > 4) return t;
@@ -469,6 +482,24 @@
       if (p.currentMiniLv > p.ctrl.interConfig.sceneNum) { A._why = 'scene-done'; A.running = false; return; }
       var block = s.getChildByName('BlockInputEvent');
       if (block && block.active) { setTimeout(function () { tick(g); }, 120); return; }
+
+      // 换关（StalkPre_1 组件重建）或同关内切场景（currentMiniLv +1）→ 重新"先看一眼画面"
+      if (p !== lastPre) {
+        lastPre = p;
+        lastMiniSeen = p.currentMiniLv;
+        beginIntro('level' + ((p.ctrl.interConfig && p.ctrl.interConfig.lv) || '?'));
+      } else if (lastMiniSeen >= 0 && p.currentMiniLv === lastMiniSeen + 1) {
+        beginIntro('scene' + p.currentMiniLv);
+      }
+      lastMiniSeen = p.currentMiniLv;
+      // 遮罩已落下，画面可交互：从这里开始计 3~5 秒"看画面"时间
+      if (pendingIntro) {
+        if (!introFrom) introFrom = Date.now();
+        if (Date.now() < introFrom + introMs) { setTimeout(function () { tick(g); }, 150); return; }
+        pendingIntro = false;
+        A.log.push('INTRO-END');
+      }
+
       if (Date.now() < waitUntil) { setTimeout(function () { tick(g); }, 150); return; }
       var tip = p.getTipConfig();
       if (!tip) { idle++; if (idle > 80) { A._why = 'idle-no-tip'; A.running = false; return; } setTimeout(function () { tick(g); }, 250); return; }
@@ -526,6 +557,12 @@
   A.start = function () {
     A.running = true; A._why = null; A.err = null;
     lastProg = ''; lastAt = 0; idle = 0; lastMini = -1; lastStep = -1;
+    // 记下启动时已存在的关卡组件（boot 在新关加载完才 start），避免把同一组件误判成"换关"
+    lastPre = null;
+    try { lastPre = preComp(); } catch (e) {}
+    lastMiniSeen = lastPre ? lastPre.currentMiniLv : -1;
+    pendingIntro = false; introFrom = 0;
+    beginIntro('level-start');
     gen++;
     tick(gen);
     return 'started';
