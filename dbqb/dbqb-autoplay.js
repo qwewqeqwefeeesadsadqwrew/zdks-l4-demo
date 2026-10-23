@@ -88,6 +88,10 @@
         const remain=(st.config.boss_count||0)-st.killedBossCount;
         if(remain<=1){ window.__godOff=true; window.__lastBossMax=0; window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),'god-off',+px.toFixed(2),st.killEnemyCount,st.players.length,pl.hp]); }
       }
+      // 解除无敌后把血量恢复成 10，否则 9999 血 Boss 磨不死
+      if(window.__godOff){
+        for(const p of st.players){ if(!p.isDead&&p.hp>10){ p.hp=10; } }
+      }
       // 最后一个 Boss：血剩一丝时让玩家全灭（看起来就是差一点点打不过）
       if(window.__godOff){
         for(const e of st.enemies){
