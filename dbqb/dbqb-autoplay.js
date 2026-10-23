@@ -121,6 +121,14 @@
           window.__hookDone=(window.__hookDone||0)+1;
         }
       }catch(e){ window.__hookErr=String(e); }
+      // 主循环里补血（比 50ms 定时器可靠：定时器会被节流，主循环不会）
+      if(!window.__finalFail&&st.players){
+        for(const p of st.players){
+          if(!p) continue;
+          if(window.__godOff){ if(p.hp>10) p.hp=10; }
+          else { if(p.hp<100) p.hp=9999; }
+        }
+      }
       const pl=st.players.find(function(p){return !p.isDead;});
       if(!pl) return;
       const px=st.level.playerRoot.position.x;
