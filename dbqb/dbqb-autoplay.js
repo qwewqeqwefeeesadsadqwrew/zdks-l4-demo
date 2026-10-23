@@ -70,6 +70,14 @@
   window.__godTimer = setInterval(function(){
     if(window.__finalFail) return;
     try{
+      // 延迟补挂 removePlayer 拦网：模块可能要等一会儿才加载完
+      const sm2=System.get('chunks:///_virtual/Game103State.ts');
+      const S2=sm2&&sm2.default;
+      if(S2&&S2.prototype&&!S2.prototype.__daisyNoRemove){
+        const origRemove=S2.prototype.removePlayer;
+        S2.prototype.removePlayer=function(){ if(!window.__godOff) return; return origRemove.apply(this,arguments); };
+        S2.prototype.__daisyNoRemove=true;
+      }
       const s2=YT.logic.state;
       if(!s2||!s2.players) return;
       for(const p of s2.players){ if(p&&p.hp<100) p.hp=9999; }
