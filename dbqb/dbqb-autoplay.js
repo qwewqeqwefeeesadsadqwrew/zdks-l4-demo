@@ -25,6 +25,7 @@
   window.__mergedLv2 = false; window.__mergeOK = false; window.__mergeErr = null;
   window.__boss3Nerfed = false;
   window.__lastBossMax = 0;
+  window.__finalMaxHp = 0; window.__finalFloor = 0; window.__finalFail = false;
   // 前期无敌：每 50ms 把血量拉满；到最后一个 Boss 才解开（之后让 Boss 打死）
   window.__godOff = false;
   // 无敌第二道：拦截 onHit，伤害直接归零；godOff 之后自动放行
@@ -53,13 +54,21 @@
     const E=em&&(em.G103Enemy||em.default);
     if(E&&E.prototype&&!E.prototype.__daisyNoDmg){
       const origHit=E.prototype.onHit;
-      E.prototype.onHit=function(d){ if(window.__godOff&&this&&this.isBoss&&this.hp>1000000) return; return origHit.apply(this,arguments); };
+      E.prototype.onHit=function(d){
+        if(window.__godOff&&this&&this.isBoss&&window.__finalFloor){
+          if(this.hp<=window.__finalFloor) return;          // 掉到 10%~30% 就锁住，不再往下掉
+          origHit.apply(this,arguments);
+          if(this.hp<window.__finalFloor) this.hp=window.__finalFloor;
+          return;
+        }
+        return origHit.apply(this,arguments);
+      };
       E.prototype.__daisyNoDmg=true;
     }
   }catch(e){}
   if(window.__godTimer) clearInterval(window.__godTimer);
   window.__godTimer = setInterval(function(){
-    if(window.__godOff) return;
+    if(window.__finalFail) return;
     try{
       const s2=YT.logic.state;
       if(!s2||!s2.players) return;
@@ -98,19 +107,19 @@
         const remain=(st.config.boss_count||0)-st.killedBossCount;
         if(remain<=1){ window.__godOff=true; window.__lastBossMax=0; window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),'god-off',+px.toFixed(2),st.killEnemyCount,st.players.length,pl.hp]); }
       }
-      // 解除无敌后把血量恢复成 10，否则 9999 血 Boss 磨不死
-      if(window.__godOff){
-        for(const p of st.players){ if(!p.isDead&&p.hp>10){ p.hp=10; } }
-      }
-      // 最后一个 Boss：血剩一丝时让玩家全灭（看起来就是差一点点打不过）
-      if(window.__godOff){
+      // 最后阶段：Boss 正常掉血但锁在 10%~30%；掉到阈值时玩家全灭，判定失败
+      if(window.__godOff&&!window.__finalFail){
         for(const e of st.enemies){
           if(e.isDead||!e.isBoss) continue;
-          if(e.hp>(window.__lastBossMax||0)) window.__lastBossMax=e.hp;
-          if(window.__lastBossMax>0&&e.hp>0&&e.hp<=window.__lastBossMax*0.20){
-            for(const p of st.players){ if(!p.isDead){ p.hp=0; } }
-            window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),'final-fail',+px.toFixed(2),st.killEnemyCount,st.players.length,0]);
-            return;
+          if(e.hp>1000000){
+            if(!window.__finalMaxHp){ window.__finalMaxHp=e.hp; window.__finalFloor=e.hp*(0.10+Math.random()*0.20); }
+            if(e.hp<=window.__finalFloor){
+              window.__finalFail=true;
+              if(window.__godTimer) clearInterval(window.__godTimer);
+              for(const p of st.players){ if(!p.isDead){ p.hp=0; } }
+              window.__dbqbLog.push([+((Date.now()-window.__dbqbStart)/1000).toFixed(1),'final-fail',+px.toFixed(2),st.killEnemyCount,st.players.length,0]);
+              return;
+            }
           }
           break;
         }
